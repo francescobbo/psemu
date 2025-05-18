@@ -12,7 +12,6 @@ impl Cpu {
     /// ORI rt, rs, immediate
     /// GPR[rt] = GPR[rs] | immediate_value
     pub(super) fn ins_ori(&mut self, instr: Instruction) {
-        println!("ORI: rs = {:#X}, rt = {:#X}, immediate = {:#X}", self.get_rs(instr), instr.rt(), instr.imm16());
         self.write_reg(instr.rt(), self.get_rs(instr) | instr.imm16());
     }
 
