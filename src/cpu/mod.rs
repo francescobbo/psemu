@@ -1,6 +1,9 @@
 mod arith;
+mod instruction;
+mod logic;
 
 use crate::ram::Ram;
+pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
 
@@ -38,17 +41,44 @@ impl Cpu {
     }
 
     /// Fetch the instruction from the given address.
-    fn fetch_instruction(&self, address: u32) -> u32 {
-        self.ram.read32(address)
+    fn fetch_instruction(&self, address: u32) -> Instruction {
+        Instruction(self.ram.read32(address))
     }
 
     /// Execute an instruction
-    fn execute(&mut self, instruction: u32) {
-        let opcode = instruction >> 26;
-
-        match opcode {
+    fn execute(&mut self, instruction: Instruction) {
+        match instruction.opcode() {
             0x09 => self.ins_addiu(instruction),
-            _ => panic!("Unimplemented opcode: {:#X}", opcode),
+            0x0c => self.ins_andi(instruction),
+            0x0d => self.ins_ori(instruction),
+            0x0e => self.ins_xori(instruction),
+            0x0f => self.ins_lui(instruction),
+            _ => panic!("Unimplemented opcode: {:#X}", instruction.opcode()),
+        }
+    }
+
+    /// Calculate the effective address for a load/store instruction
+    fn target_address(&self, instr: Instruction) -> u32 {
+        let offset = instr.simm16() as u32;
+        let rs_value = self.get_rs(instr);
+        rs_value.wrapping_add(offset)
+    }
+
+    /// Get the value of the GPR register pointed to by rt
+    fn get_rt(&self, instr: Instruction) -> u32 {
+        self.registers[instr.rt() as usize]
+    }
+
+    /// Get the value of the GPR register pointed to by rs
+    fn get_rs(&self, instruction: Instruction) -> u32 {
+        self.registers[instruction.rs() as usize]
+    }
+
+    /// Write a value to a GPR register
+    fn write_reg(&mut self, index: usize, value: u32) {
+        // The zero register (R0) is always 0, so we don't allow writing to it
+        if index != 0 {
+            self.registers[index] = value;
         }
     }
 }
