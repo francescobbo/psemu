@@ -7,10 +7,13 @@ impl Cpu {
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
     pub(super) fn ins_addi(&mut self, instr: Instruction) {
+        let value = self.get_rs(instr) as i32;
         let immediate = instr.simm16();
-        let result = self.get_rs(instr) as i32 + immediate;
-
-        self.write_reg(instr.rt(), result as u32);
+        
+        match value.checked_add(immediate) {
+            Some(result) => self.write_reg(instr.rt(), result as u32),
+            None => self.exception("Overflow")
+        }
     }
 
     /// 09 - ADDIU - I-type
