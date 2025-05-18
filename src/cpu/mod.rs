@@ -1,8 +1,11 @@
 mod arith;
+mod instruction;
+mod logic;
 #[cfg(test)]
 mod test_utils;
 
 use crate::ram::{AccessSize, Ram};
+pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
 
@@ -39,17 +42,47 @@ impl Cpu {
     }
 
     /// Fetch the instruction from the given address.
-    fn fetch_instruction(&self, address: u32) -> u32 {
-        self.read_memory(address, AccessSize::Word).unwrap()
+    fn fetch_instruction(&self, address: u32) -> Instruction {
+        Instruction(self.read_memory(address, AccessSize::Word).unwrap())
     }
 
     /// Execute an instruction
-    fn execute(&mut self, instruction: u32) {
-        let opcode = instruction >> 26;
-
-        match opcode {
+    fn execute(&mut self, instruction: Instruction) {
+        match instruction.opcode() {
+            0x08 => self.ins_addi(instruction),
             0x09 => self.ins_addiu(instruction),
-            _ => panic!("Unimplemented opcode: {:x} @ {:08x}", opcode, self.pc - 4),
+            0x0a => self.ins_slti(instruction),
+            0x0b => self.ins_sltiu(instruction),
+            0x0c => self.ins_andi(instruction),
+            0x0d => self.ins_ori(instruction),
+            0x0e => self.ins_xori(instruction),
+            0x0f => self.ins_lui(instruction),
+            _ => panic!("Unimplemented opcode: {:02x} @ {:08x}", instruction.opcode(), self.pc - 4),
+        }
+    }
+
+    /// Calculate the effective address for a load/store instruction
+    fn target_address(&self, instr: Instruction) -> u32 {
+        let offset = instr.simm16() as u32;
+        let rs_value = self.get_rs(instr);
+        rs_value.wrapping_add(offset)
+    }
+
+    /// Get the value of the GPR register pointed to by rt
+    fn get_rt(&self, instr: Instruction) -> u32 {
+        self.registers[instr.rt()]
+    }
+
+    /// Get the value of the GPR register pointed to by rs
+    fn get_rs(&self, instruction: Instruction) -> u32 {
+        self.registers[instruction.rs()]
+    }
+
+    /// Write a value to a GPR register
+    fn write_reg(&mut self, index: usize, value: u32) {
+        // The zero register (R0) is always 0, so we don't allow writing to it
+        if index != 0 {
+            self.registers[index] = value;
         }
     }
 
