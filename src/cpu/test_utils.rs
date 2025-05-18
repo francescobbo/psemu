@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::cpu::Cpu;
 
 const INITIAL_PC: u32 = 0x0000_1000;
@@ -29,5 +31,5 @@ pub fn cpu_steps(cpu: &mut Cpu, steps: usize) {
 }
 
 pub fn i_type(opcode: u32, rt: usize, rs: usize, immediate: u16) -> u32 {
-    (opcode << 26) | ((rs as u32) << 21) | ((rt as u32) << 16) | (immediate as u16 as u32)
+    (opcode << 26) | ((rs as u32) << 21) | ((rt as u32) << 16) | (immediate as u32)
 }
