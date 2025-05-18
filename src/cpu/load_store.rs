@@ -6,7 +6,7 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lb(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        let value = self.ram.read(address, 1) as i8 as u32;
+        let value = self.read_memory(address, 1).unwrap() as i8 as u32;
 
         self.write_reg(instr.rt(), value);
     }
@@ -16,7 +16,7 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 16-bit])
     pub(super) fn ins_lh(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        let value = self.ram.read(address, 2) as i16 as u32;
+        let value = self.read_memory(address, 2).unwrap() as i16 as u32;
 
         self.write_reg(instr.rt(), value);
     }
@@ -26,7 +26,7 @@ impl Cpu {
     /// GPR[rt] = Memory[rs + offset, 32-bit]
     pub(super) fn ins_lw(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        let value = self.ram.read(address, 4);
+        let value = self.read_memory(address, 4).unwrap();
 
         self.write_reg(instr.rt(), value);
     }
@@ -36,7 +36,7 @@ impl Cpu {
     /// GPR[rt] = zero_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lbu(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        let value = self.ram.read(address, 1) as u32;
+        let value = self.read_memory(address, 1).unwrap();
 
         self.write_reg(instr.rt(), value);
     }
@@ -46,7 +46,7 @@ impl Cpu {
     /// GPR[rt] = zero_extend(Memory[rs + offset, 16-bit])
     pub(super) fn ins_lhu(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        let value = self.ram.read(address, 2) as u32;
+        let value = self.read_memory(address, 2).unwrap();
 
         self.write_reg(instr.rt(), value);
     }
@@ -58,7 +58,7 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        self.ram.write(address, value, 1);
+        self.write_memory(address, value, 1).unwrap();
     }
 
     /// 29 - SH - I-type
@@ -68,7 +68,7 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        self.ram.write(address, value, 2);
+        self.write_memory(address, value, 2).unwrap();
     }
 
     /// 2B - SW - I-type
@@ -78,7 +78,7 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        self.ram.write(address, value, 4);
+        self.write_memory(address, value, 4).unwrap();
     }
 }
 
