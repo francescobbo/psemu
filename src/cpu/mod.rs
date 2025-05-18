@@ -1,5 +1,6 @@
 mod arith;
 mod instruction;
+mod load_store;
 mod logic;
 #[cfg(test)]
 mod test_utils;
@@ -57,7 +58,19 @@ impl Cpu {
             0x0d => self.ins_ori(instruction),
             0x0e => self.ins_xori(instruction),
             0x0f => self.ins_lui(instruction),
-            _ => panic!("Unimplemented opcode: {:02x} @ {:08x}", instruction.opcode(), self.pc - 4),
+            0x20 => self.ins_lb(instruction),
+            0x21 => self.ins_lh(instruction),
+            0x23 => self.ins_lw(instruction),
+            0x24 => self.ins_lbu(instruction),
+            0x25 => self.ins_lhu(instruction),
+            0x28 => self.ins_sb(instruction),
+            0x29 => self.ins_sh(instruction),
+            0x2b => self.ins_sw(instruction),
+            _ => panic!(
+                "Unimplemented opcode: {:02x} @ {:08x}",
+                instruction.opcode(),
+                self.pc - 4
+            ),
         }
     }
 
@@ -95,5 +108,10 @@ impl Cpu {
     pub fn write_memory(&mut self, address: u32, value: u32, size: AccessSize) -> Result<(), ()> {
         self.ram.write(address, value, size);
         Ok(())
+    }
+
+    /// Raises an exception (stub for now)
+    fn exception(&mut self, code: &str) {
+        panic!("Exception raised: {code}");
     }
 }
