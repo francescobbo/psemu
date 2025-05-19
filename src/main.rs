@@ -15,10 +15,10 @@ fn main() {
     }
 
     let rom = read_rom(&args[1]);
-    load_rom(&mut cpu.ram, rom, 0x1000);
-    cpu.pc = 0x1000;
+    load_rom(&mut cpu.ram, rom, 0);
+    cpu.pc = 0;
 
-    // Execute 100 instructions
+    // Execute a bunch of instructions
     for _ in 0..100 {
         cpu.step();
     }
@@ -33,13 +33,6 @@ fn main() {
     }
 
     println!();
-
-    // Print the contents of the RAM 0x100 to 0x116
-    for i in 0..=5 {
-        let address = 0x100 + i * 4;
-        let value = cpu.ram.read32(address);
-        println!("0x{:08x}: 0x{:08x}", address, value);
-    }
 }
 
 fn read_rom(path: &str) -> Vec<u8> {
