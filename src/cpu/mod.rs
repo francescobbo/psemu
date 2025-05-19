@@ -1,4 +1,5 @@
 mod arith;
+mod branch;
 mod instruction;
 mod load_store;
 mod logic;
@@ -82,6 +83,8 @@ impl Cpu {
                     }
                 }
             }
+            0x02 => self.ins_j(instruction),
+            0x04 => self.ins_beq(instruction),
             0x08 => self.ins_addi(instruction),
             0x09 => self.ins_addiu(instruction),
             0x0a => self.ins_slti(instruction),
