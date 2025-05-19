@@ -19,7 +19,7 @@ fn main() {
     cpu.pc = 0x1000;
 
     // Execute 100 instructions
-    for _ in 0..42 {
+    for _ in 0..100 {
         cpu.step();
     }
 

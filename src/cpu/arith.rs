@@ -1,6 +1,32 @@
 use super::{Cpu, Instruction};
 
 impl Cpu {
+    /// 00.21 - ADDU - R-Type
+    /// ADDU rd, rs, rt
+    /// GPR[rd] = GPR[rs] + GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_addu(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_add(self.get_rt(instruction)),
+        );
+    }
+
+    /// 00.23 - SUBU - R-Type
+    /// SUBU rd, rs, rt
+    /// GPR[rd] = GPR[rs] - GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_subu(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_sub(self.get_rt(instruction)),
+        );
+    }
+
     /// 09 - ADDIU - I-type
     /// ADDIU rt, rs, immediate
     /// GPR[rt] = GPR[rs] + sign_extended(immediate_value)

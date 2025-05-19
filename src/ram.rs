@@ -25,10 +25,7 @@ impl Ram {
             panic!("[RAM] Out of bounds read at {:#X}", address);
         }
 
-        let bytes = [
-            self.data[address as usize],
-            self.data[address as usize + 1],
-        ];
+        let bytes = [self.data[address as usize], self.data[address as usize + 1]];
 
         u16::from_le_bytes(bytes)
     }
