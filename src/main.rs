@@ -4,6 +4,7 @@ mod ram;
 
 use std::io::Read;
 use debug::Debugger;
+use ram::AccessSize;
 
 fn main() {
     let mut cpu = cpu::Cpu::new();
@@ -21,7 +22,7 @@ fn main() {
     cpu.pc = 0x1000;
 
     // Execute 100 instructions
-    for _ in 0..42 {
+    for _ in 0..100 {
         cpu.step();
     }
 
@@ -43,7 +44,7 @@ fn read_rom(path: &str) -> Vec<u8> {
 
 fn load_rom(cpu: &mut cpu::Cpu, rom: Vec<u8>, start_address: u32) {
     for (i, byte) in rom.iter().enumerate() {
-        cpu.write_memory(start_address + i as u32, *byte as u32, ram::AccessSize::Byte)
+        cpu.write_memory(start_address + i as u32, *byte as u32, AccessSize::Byte)
             .expect("Failed to write to memory");
     }
 }

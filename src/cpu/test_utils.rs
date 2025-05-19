@@ -32,3 +32,13 @@ pub fn cpu_steps(cpu: &mut Cpu, steps: usize) {
 pub fn i_type(opcode: u32, rt: usize, rs: usize, immediate: u16) -> u32 {
     (opcode << 26) | ((rs as u32) << 21) | ((rt as u32) << 16) | (immediate as u32)
 }
+
+pub fn r_type_shift(funct: u32, rd: usize, rt: usize, shamt: usize) -> u32 {
+    // Assuming opcode for SPECIAL R-Type is 0x00
+    ((rt as u32) << 16) | ((rd as u32) << 11) | ((shamt as u32) << 6) | funct
+}
+
+pub fn r_type(funct: u32, rd: usize, rt: usize, rs: usize) -> u32 {
+    // Assuming opcode for SPECIAL R-Type is 0x00
+    ((rs as u32) << 21) | ((rt as u32) << 16) | ((rd as u32) << 11) | funct
+}

@@ -1,6 +1,62 @@
 use super::{Cpu, Instruction};
 
 impl Cpu {
+    /// 00.20 - ADD - R-Type
+    /// ADD rd, rs, rt
+    /// GPR[rd] = GPR[rs] + GPR[rt]
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_add(&mut self, instruction: Instruction) {
+        let rs = self.get_rs(instruction) as i32;
+        let rt = self.get_rt(instruction) as i32;
+
+        self.write_reg(
+            instruction.rd(),
+            (rs + rt) as u32,
+        );
+    }
+
+    /// 00.21 - ADDU - R-Type
+    /// ADDU rd, rs, rt
+    /// GPR[rd] = GPR[rs] + GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_addu(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_add(self.get_rt(instruction)),
+        );
+    }
+
+    /// 00.22 - SUB - R-Type
+    /// SUB rd, rs, rt
+    /// GPR[rd] = GPR[rs] - GPR[rt]
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_sub(&mut self, instruction: Instruction) {
+        let rs = self.get_rs(instruction) as i32;
+        let rt = self.get_rt(instruction) as i32;
+
+        self.write_reg(
+            instruction.rd(),
+            (rs - rt) as u32,
+        );
+    }
+
+    /// 00.23 - SUBU - R-Type
+    /// SUBU rd, rs, rt
+    /// GPR[rd] = GPR[rs] - GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_subu(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_sub(self.get_rt(instruction)),
+        );
+    }
+
     /// 08 - ADDI - I-type
     /// ADDIU rt, rs, immediate
     /// GPR[rt] = GPR[rs] + sign_extended(immediate_value)
@@ -41,6 +97,138 @@ mod tests {
     use crate::cpu::test_utils::*;
 
     #[test]
+    fn test_add() {
+        let mut cpu = test_cpu(
+            &[
+                (1, 1234),
+                (2, 0xffffffff),
+                (3, 15),
+                (7, 1)],
+            &[
+                // ADD r8, r7, r0
+                r_type(0x20, 8, 0, 7),
+                // ADD r9, r7, r1
+                r_type(0x20, 9, 1, 7),
+                // ADD r10, r7, r2
+                r_type(0x20, 10,2, 7),
+                // ADD r0, r7, r3
+                r_type(0x20, 0, 3, 7),
+            ],
+        );
+        cpu_steps(&mut cpu, 4);
+
+        assert_eq!(cpu.registers[8], 1);
+        assert_eq!(cpu.registers[9], 1 + 1234);
+        assert_eq!(cpu.registers[10], 0); // subtraction does not overflow
+        assert_eq!(cpu.registers[0], 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_add_overflow() {
+        let mut cpu = test_cpu(
+            &[(7, 0x7fff_ffff), (1, 1)],
+            &[
+                // ADD r8, r7, r1
+                r_type(0x20, 8, 1, 7),
+            ],
+        );
+        cpu.step();
+
+        // This should panic due to overflow as 7fff_ffff is the largest signed
+        // 32-bit integer, and adding 1 would take us to the largest signed
+        // negative integer.
+    }
+
+    #[test]
+    fn test_addu() {
+        let mut cpu = test_cpu(
+            &[
+                (1, 1234),
+                (2, 0xffffffff),
+                (3, 15),
+                (7, 1)],
+            &[
+                // ADDU r8, r7, r0
+                r_type(0x21, 8, 0, 7),
+                // ADDU r9, r7, r1
+                r_type(0x21, 9, 1, 7),
+                // ADDU r10, r7, r2
+                r_type(0x21, 10,2, 7),
+                // ADDU r0, r7, r3
+                r_type(0x21, 0, 3, 7),
+                // ADDU r11, r2, r2
+                r_type(0x21, 11, 2, 2),
+            ],
+        );
+        cpu_steps(&mut cpu, 5);
+
+        assert_eq!(cpu.registers[8], 1);
+        assert_eq!(cpu.registers[9], 1 + 1234);
+        assert_eq!(cpu.registers[10], 0); // subtraction does not overflow
+        assert_eq!(cpu.registers[0], 0);
+        assert_eq!(cpu.registers[11], 0xfffffffe); // wrapping addition
+    }
+
+    #[test]
+    fn test_sub() {
+        let mut cpu = test_cpu(
+            &[
+                (1, 1234),
+                (2, 0xffffffff),
+                (3, 15),
+                (7, 1)],
+            &[
+                // SUB r8, r7, r0
+                r_type(0x22, 8, 0, 7),
+                // SUB r9, r7, r1
+                r_type(0x22, 9, 1, 7),
+                // SUB r10, r7, r2
+                r_type(0x22, 10, 2, 7),
+                // SUB r0, r7, r3
+                r_type(0x22, 0, 3, 7),
+            ],
+        );
+        cpu_steps(&mut cpu, 4);
+
+        assert_eq!(cpu.registers[8], 1);
+        assert_eq!(cpu.registers[9], (1 - 1234) as u32);
+        assert_eq!(cpu.registers[10], 2); // addition does not overflow
+        assert_eq!(cpu.registers[0], 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_sub_overflow() {
+        let mut cpu = test_cpu(
+            &[(7, 0x8000_0000), (1, 1)],
+            &[
+                // SUB r8, r7, r1
+                r_type(0x22, 8, 1, 7),
+            ],
+        );
+        cpu.step();
+
+        // This should panic due to overflow as 8000_0000 is the biggest signed
+        // negative 32-bit integer, and subtracting 1 would take us to the
+        // largest signed positive integer.
+    }
+
+    #[test]
+    fn test_subu() {
+        let mut cpu = test_cpu(
+            &[(7, 1), (8, 2)],
+            &[
+                // SUBU r9, r7, r8
+                r_type(0x23, 9, 8, 7),
+            ],
+        );
+
+        cpu.step();
+        assert_eq!(cpu.registers[9], (-1 as i32) as u32);
+    }
+
+    #[test]
     fn test_addi() {
         let mut cpu = test_cpu(
             &[(7, 1)],
@@ -50,12 +238,12 @@ mod tests {
                 // ADDI r9, r7, 1234
                 i_type(0x08, 9, 7, 1234),
                 // ADDI r10, r7, 15
-                i_type(0x08, 0, 7, 0xffff),
+                i_type(0x08, 10, 7, 0xffff),
                 // ADDI r0, r7, 15
                 i_type(0x08, 0, 7, 15),
             ],
         );
-        cpu_steps(&mut cpu, 3);
+        cpu_steps(&mut cpu, 4);
 
         assert_eq!(cpu.registers[8], 1);
         assert_eq!(cpu.registers[9], 1 + 1234);

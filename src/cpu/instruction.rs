@@ -15,6 +15,9 @@ bitfield! {
     /// The RT field (5 bits) specifies the target register index
     pub u8, into usize, rt, _: 20, 16;
 
+    /// The RD field (5 bits) specifies the destination register index
+    pub u8, into usize, rd, _: 15, 11;
+
     /// The immediate field (16 bits) is a signed value used in some
     /// instructions, signed-extended to 32 bits
     pub i16, into i32, simm16, _: 15, 0;
@@ -22,4 +25,10 @@ bitfield! {
     /// The immediate field (16 bits) is an unsigned value used in some
     /// instructions, zero-extended to 32 bits
     pub imm16, _: 15, 0;
+
+    /// The SHAMT field (5 bits) specifies the shift amount
+    pub u8, into usize, shamt, _: 10, 6;
+
+    /// The funct field (6 bits) specifies the exact operation to be performed
+    pub funct, _: 5, 0;
 }

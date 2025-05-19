@@ -50,6 +50,31 @@ impl Cpu {
     /// Execute an instruction
     fn execute(&mut self, instruction: Instruction) {
         match instruction.opcode() {
+            0x00 => {
+                // R-type instructions
+                match instruction.funct() {
+                    0x00 => self.ins_sll(instruction),
+                    0x02 => self.ins_srl(instruction),
+                    0x03 => self.ins_sra(instruction),
+                    0x04 => self.ins_sllv(instruction),
+                    0x06 => self.ins_srlv(instruction),
+                    0x07 => self.ins_srav(instruction),
+                    0x20 => self.ins_add(instruction),
+                    0x21 => self.ins_addu(instruction),
+                    0x22 => self.ins_sub(instruction),
+                    0x23 => self.ins_subu(instruction),
+                    0x24 => self.ins_and(instruction),
+                    0x25 => self.ins_or(instruction),
+                    0x26 => self.ins_xor(instruction),
+                    0x27 => self.ins_nor(instruction),
+                    0x2a => self.ins_slt(instruction),
+                    0x2b => self.ins_sltu(instruction),
+                    _ => {
+                        println!("Unimplemented funct: {:02x} @ {:08x}", instruction.funct(), self.pc - 4);
+                        self.exception("Unimplemented funct");
+                    }
+                }
+            }
             0x08 => self.ins_addi(instruction),
             0x09 => self.ins_addiu(instruction),
             0x0a => self.ins_slti(instruction),
@@ -66,11 +91,10 @@ impl Cpu {
             0x28 => self.ins_sb(instruction),
             0x29 => self.ins_sh(instruction),
             0x2b => self.ins_sw(instruction),
-            _ => panic!(
-                "Unimplemented opcode: {:02x} @ {:08x}",
-                instruction.opcode(),
-                self.pc - 4
-            ),
+            _ => {
+                println!("Unimplemented opcode: {:02x} @ {:08x}", instruction.funct(), self.pc - 4);
+                self.exception("Unimplemented funct");
+            }
         }
     }
 
