@@ -23,6 +23,14 @@ pub struct Cpu {
 
     /// RAM instance to access memory.
     pub ram: Ram,
+
+    /// The target of a branch instruction, which will be placed in PC after the
+    /// delay slot.
+    pub branch_target: Option<u32>,
+
+    /// The target of a branch instruction that will be reached after the
+    /// current instruction is executed.
+    pub current_branch_target: Option<u32>,
 }
 
 impl Cpu {
@@ -31,19 +39,34 @@ impl Cpu {
             ram: Ram::new(),
             registers: [0; NUM_REGISTERS],
             pc: 0,
+            branch_target: None,
+            current_branch_target: None,
         }
     }
 
     /// Perform one step of the CPU cycle.
     pub fn step(&mut self) {
+        // Take the target of the branch instruction, if we are in a delay slot.
+        self.current_branch_target = self.branch_target.take();
+
         // Fetch the instruction at the current program counter (PC).
+        // This may be a delay slot instruction.
         let instruction = self.fetch_instruction(self.pc);
 
-        // Update the program counter to point to the next instruction.
+        // Update PC to point to the following instruction.
         self.pc += 4;
 
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);
+
+        // If the instruction we just executed was a delay slot - and the slot
+        // did not contain a branch instruction (creating a new delay slot) -
+        // then we need to update the PC to point to the target of the branch.
+        if self.branch_target.is_none() {
+            if let Some(target) = self.current_branch_target.take() {
+                self.pc = target;
+            }
+        }
     }
 
     /// Fetch the instruction from the given address.
@@ -63,6 +86,8 @@ impl Cpu {
                     0x04 => self.ins_sllv(instruction),
                     0x06 => self.ins_srlv(instruction),
                     0x07 => self.ins_srav(instruction),
+                    0x08 => self.ins_jr(instruction),
+                    0x09 => self.ins_jalr(instruction),
                     0x20 => self.ins_add(instruction),
                     0x21 => self.ins_addu(instruction),
                     0x22 => self.ins_sub(instruction),
@@ -83,8 +108,25 @@ impl Cpu {
                     }
                 }
             }
+            0x01 => {
+                // This format abuses the `rt` field for a sub-opcode
+                match instruction.rt() {
+                    0x00 => self.ins_bltz(instruction),
+                    0x01 => self.ins_bgez(instruction),
+                    0x10 => self.ins_bltzal(instruction),
+                    0x11 => self.ins_bgezal(instruction),
+                    _ => {
+                        println!("Unimplemented funct: {:02x} @ {:08x}", instruction.rt(), self.pc - 4);
+                        self.exception("Unimplemented funct");
+                    }
+                }
+            }
             0x02 => self.ins_j(instruction),
+            0x03 => self.ins_jal(instruction),
             0x04 => self.ins_beq(instruction),
+            0x05 => self.ins_bne(instruction),
+            0x06 => self.ins_blez(instruction),
+            0x07 => self.ins_bgtz(instruction),
             0x08 => self.ins_addi(instruction),
             0x09 => self.ins_addiu(instruction),
             0x0a => self.ins_slti(instruction),
