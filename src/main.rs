@@ -18,21 +18,16 @@ fn main() {
     }
 
     let rom = read_rom(&args[1]);
-    load_rom(&mut cpu, rom, 0x1000);
-    cpu.pc = 0x1000;
+    load_rom(&mut cpu, rom, 0);
+    cpu.pc = 0;
 
-    // Execute 50 instructions
-    for _ in 0..50 {
+    // Execute a bunch of instructions
+    for _ in 0..100 {
         cpu.step();
     }
 
     // Print the contents of the registers
     Debugger::print_registers(&cpu);
-
-    // Print the contents of the RAM 0x100 to 0x114
-    for address in (0x100..=0x114).step_by(4) {
-        Debugger::read_memory(&cpu, address);
-    }
 }
 
 fn read_rom(path: &str) -> Vec<u8> {
