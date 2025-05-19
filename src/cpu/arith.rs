@@ -83,4 +83,22 @@ mod tests {
         cpu.execute(Instruction(0x3c00_5678)); // LUI r0, 0x5678
         assert_eq!(cpu.registers[0], 0);
     }
+
+    #[test]
+    fn test_addu() {
+        let mut cpu = Cpu::new();
+        cpu.registers[7] = 1;
+        cpu.registers[8] = 2;
+        cpu.execute(Instruction(0x00107_4021)); // ADDU r8, r7, r8
+        assert_eq!(cpu.registers[8], 3);
+    }
+
+    #[test]
+    fn test_subu() {
+        let mut cpu = Cpu::new();
+        cpu.registers[7] = 1;
+        cpu.registers[8] = 2;
+        cpu.execute(Instruction(0xE84023)); // SUBU r8, r7, r8
+        assert_eq!(cpu.registers[8], (-1 as i32) as u32);
+    }
 }

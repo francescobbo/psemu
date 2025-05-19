@@ -103,4 +103,37 @@ mod tests {
         cpu.execute(Instruction(0xace8_fffc)); // SW r8, -4(r7)
         assert_eq!(cpu.ram.read32(0x0ffc), 0x12345678);
     }
+
+    #[test]
+    fn test_sh() {
+        let mut cpu = Cpu::new();
+        cpu.registers[7] = 0x1000;
+        cpu.registers[8] = 0x12345678;
+
+        cpu.execute(Instruction(0xa4e8_0000)); // SH r8, 0(r7)
+
+        assert_eq!(cpu.ram.read16(0x1000), 0x5678);
+
+        // Test that the store was done in little-endian order
+        assert_eq!(cpu.ram.read8(0x1000), 0x78);
+
+        // Test a store to a negative offset
+        cpu.execute(Instruction(0xa4e8_fffe)); // SH r8, -2(r7)
+        assert_eq!(cpu.ram.read8(0x0fff), 0x56);
+    }
+
+    #[test]
+    fn test_sb() {
+        let mut cpu = Cpu::new();
+        cpu.registers[7] = 0x1000;
+        cpu.registers[8] = 0x12345678;
+
+        cpu.execute(Instruction(0xa0e8_0000)); // SB r8, 0(r7)
+
+        assert_eq!(cpu.ram.read8(0x1000), 0x78);
+
+        // Test a store to a negative offset
+        cpu.execute(Instruction(0xa0e8_ffff)); // SB r8, -1(r7)
+        assert_eq!(cpu.ram.read8(0x0fff), 0x78);
+    }
 }
