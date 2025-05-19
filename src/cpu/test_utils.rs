@@ -42,3 +42,7 @@ pub fn r_type(funct: u32, rd: usize, rt: usize, rs: usize) -> u32 {
     // Assuming opcode for SPECIAL R-Type is 0x00
     ((rs as u32) << 21) | ((rt as u32) << 16) | ((rd as u32) << 11) | funct
 }
+
+pub fn j_type(opcode: u32, target_pseudo_addr: u32) -> u32 {
+    (opcode << 26) | (target_pseudo_addr >> 2)
+}

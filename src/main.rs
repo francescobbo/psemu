@@ -2,9 +2,9 @@ mod cpu;
 mod debug;
 mod ram;
 
-use std::io::Read;
 use debug::Debugger;
 use ram::AccessSize;
+use std::io::Read;
 
 fn main() {
     let mut cpu = cpu::Cpu::new();
