@@ -6,10 +6,10 @@
 # And export the path to LLVM in your shell configuration file (e.g., ~/.bash_profile):
 # echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> ~/.bash_profile
 
-all: rom
+all: part1
 
-rom: rom.o
-	llvm-objcopy -O binary -j .text rom.o rom
+part1: part1.o
+	llvm-objcopy -O binary -j .text part1.o part1
 
-rom.o: stress-test.s
-	llvm-mc -arch=mipsel  -filetype=obj stress-test.s -o rom.o
+part1.o: part1.s
+	llvm-mc -arch=mipsel  -filetype=obj part1.s -o part1.o
