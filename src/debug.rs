@@ -12,9 +12,14 @@ enum ArgumentTypes {
     D_T_S,     // rd, rt, rs
     D_T_Shift, // rt, rd, shift
     T_S_SImm,  // rt, rs, sign_extend_imm
-    T_Imm,    // rt, imm
+    T_Imm,     // rt, imm
     T_S_Imm,   // rt, rs, imm
     T_Mem,     // rt, offset(rs)
+    S,         // rs
+    S_D,       // rs, rd
+    S_T_Jump,  // rs, rt, target
+    S_Jump,    // rs, target
+    Jump,      // target
 }
 
 impl Debugger {
@@ -50,6 +55,8 @@ impl Debugger {
                 0x04 => Self::format_instruction(ins, "sllv", ArgumentTypes::D_T_S),
                 0x06 => Self::format_instruction(ins, "srlv", ArgumentTypes::D_T_S),
                 0x07 => Self::format_instruction(ins, "srav", ArgumentTypes::D_T_S),
+                0x08 => Self::format_instruction(ins, "jr", ArgumentTypes::S),
+                0x09 => Self::format_instruction(ins, "jalr", ArgumentTypes::S_D),
                 0x20 => Self::format_instruction(ins, "add", ArgumentTypes::D_S_T),
                 0x21 => Self::format_instruction(ins, "addu", ArgumentTypes::D_S_T),
                 0x22 => Self::format_instruction(ins, "sub", ArgumentTypes::D_S_T),
@@ -62,6 +69,22 @@ impl Debugger {
                 0x2b => Self::format_instruction(ins, "sltu", ArgumentTypes::D_S_T),
                 _ => format!("Invalid opcode 0x00 with funct {:x}", ins.funct()),
             },
+            0x01 => {
+                // This format abuses the `rt` field for a sub-opcode
+                match ins.rt() {
+                    0x00 => Self::format_instruction(ins, "bltz", ArgumentTypes::S_Jump),
+                    0x01 => Self::format_instruction(ins, "bgez", ArgumentTypes::S_Jump),
+                    0x10 => Self::format_instruction(ins, "bltzal", ArgumentTypes::S_Jump),
+                    0x11 => Self::format_instruction(ins, "bgezal", ArgumentTypes::S_Jump),
+                    _ => panic!("Invalid opcode 0x01 with rt {:x}", ins.rt()),
+                }
+            }
+            0x02 => Self::format_instruction(ins, "j", ArgumentTypes::Jump),
+            0x03 => Self::format_instruction(ins, "jal", ArgumentTypes::Jump),
+            0x04 => Self::format_instruction(ins, "beq", ArgumentTypes::S_T_Jump),
+            0x05 => Self::format_instruction(ins, "bne", ArgumentTypes::S_T_Jump),
+            0x06 => Self::format_instruction(ins, "blez", ArgumentTypes::S_Jump),
+            0x07 => Self::format_instruction(ins, "bgtz", ArgumentTypes::S_Jump),
             0x08 => Self::format_instruction(ins, "addi", ArgumentTypes::T_S_SImm),
             0x09 => Self::format_instruction(ins, "addiu", ArgumentTypes::T_S_SImm),
             0x0a => Self::format_instruction(ins, "slti", ArgumentTypes::T_S_SImm),
@@ -98,6 +121,13 @@ impl Debugger {
             ArgumentTypes::T_Imm => format!("r{}, {:#x}", ins.rt(), ins.imm16()),
             ArgumentTypes::T_S_Imm => format!("r{}, r{}, {:#x}", ins.rt(), ins.rs(), ins.imm16()),
             ArgumentTypes::T_Mem => format!("r{}, {}(r{})", ins.rt(), ins.simm16(), ins.rs()),
+            ArgumentTypes::S => format!("r{}", ins.rs()),
+            ArgumentTypes::S_D => format!("r{}, r{}", ins.rs(), ins.rd()),
+            ArgumentTypes::S_T_Jump => {
+                format!("r{}, r{}, {:#x}", ins.rs(), ins.rt(), ins.simm16() << 2)
+            }
+            ArgumentTypes::S_Jump => format!("r{}, {:#x}", ins.rs(), ins.simm16() << 2),
+            ArgumentTypes::Jump => format!("{:#x}", ins.jump_target() << 2),
         }
     }
 }
