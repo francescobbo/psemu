@@ -87,9 +87,48 @@ mod tests {
     use crate::cpu::test_utils::*;
 
     #[test]
+    fn test_sb() {
+        let mut cpu = test_cpu(
+            &[(7, 0x2000), (8, 0x12345678)],
+            &[
+                // SB r8, 0(r7)
+                i_type(0x28, 8, 7, 0),
+                // SB r8, -1(r7)
+                i_type(0x28, 8, 7, 0xffff),
+            ],
+        );
+
+        cpu_steps(&mut cpu, 2);
+
+        assert_eq!(cpu.read_memory(0x2000, 1).unwrap(), 0x78);
+        assert_eq!(cpu.read_memory(0x1fff, 1).unwrap(), 0x78);
+    }
+
+    #[test]
+    fn test_sh() {
+        let mut cpu = test_cpu(
+            &[(7, 0x2000), (8, 0x12345678)],
+            &[
+                // SH r8, 0(r7)
+                i_type(0x29, 8, 7, 0),
+                // SH r8, -2(r7)
+                i_type(0x29, 8, 7, 0xfffe),
+            ],
+        );
+
+        cpu_steps(&mut cpu, 2);
+
+        assert_eq!(cpu.read_memory(0x2000, 2).unwrap(), 0x5678);
+        assert_eq!(cpu.read_memory(0x1fff, 1).unwrap(), 0x56);
+
+        // Test that the store was done in little-endian order
+        assert_eq!(cpu.read_memory(0x2000, 1).unwrap(), 0x78);
+    }
+
+    #[test]
     fn test_sw() {
         let mut cpu = test_cpu(
-            &[(7, 0x1000), (8, 0x12345678)],
+            &[(7, 0x2000), (8, 0x12345678)],
             &[
                 // SW r8, 0(r7)
                 i_type(0x2b, 8, 7, 0),
@@ -99,10 +138,10 @@ mod tests {
         );
 
         cpu_steps(&mut cpu, 2);
-        assert_eq!(cpu.read_memory(0x1000, 4).unwrap(), 0x12345678);
-        assert_eq!(cpu.read_memory(0x0ffc, 4).unwrap(), 0x12345678);
+        assert_eq!(cpu.read_memory(0x2000, 4).unwrap(), 0x12345678);
+        assert_eq!(cpu.read_memory(0x1ffc, 4).unwrap(), 0x12345678);
 
         // Test that the store was done in little-endian order
-        assert_eq!(cpu.read_memory(0x1000, 2).unwrap(), 0x5678);
+        assert_eq!(cpu.read_memory(0x2000, 2).unwrap(), 0x5678);
     }
 }

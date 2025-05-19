@@ -88,6 +88,34 @@ mod tests {
     use crate::cpu::test_utils::*;
 
     #[test]
+    fn test_addu() {
+        let mut cpu = test_cpu(
+            &[(7, 1), (8, 2)],
+            &[
+                // ADDU r9, r7, r8
+                r_type(0x21, 9, 7, 8),
+            ],
+        );
+
+        cpu.step();
+        assert_eq!(cpu.registers[9], 3);
+    }
+
+    #[test]
+    fn test_subu() {
+        let mut cpu = test_cpu(
+            &[(7, 1), (8, 2)],
+            &[
+                // SUBU r9, r7, r8
+                r_type(0x23, 9, 8, 7),
+            ],
+        );
+
+        cpu.step();
+        assert_eq!(cpu.registers[9], (-1 as i32) as u32);
+    }
+
+    #[test]
     fn test_addi() {
         let mut cpu = test_cpu(
             &[(7, 1)],
