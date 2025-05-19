@@ -1,6 +1,56 @@
 use super::{Cpu, Instruction};
 
 impl Cpu {
+    /// 00.20 - ADD - R-Type
+    /// ADD rd, rs, rt
+    /// GPR[rd] = GPR[rs] + GPR[rt]
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_add(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction) + self.get_rt(instruction),
+        );
+    }
+
+    /// 00.21 - ADDU - R-Type
+    /// ADDU rd, rs, rt
+    /// GPR[rd] = GPR[rs] + GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_addu(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_add(self.get_rt(instruction)),
+        );
+    }
+
+    /// 00.22 - SUB - R-Type
+    /// SUB rd, rs, rt
+    /// GPR[rd] = GPR[rs] - GPR[rt]
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_sub(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction) - self.get_rt(instruction),
+        );
+    }
+
+    /// 00.23 - SUBU - R-Type
+    /// SUBU rd, rs, rt
+    /// GPR[rd] = GPR[rs] - GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_subu(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_sub(self.get_rt(instruction)),
+        );
+    }
+
     /// 08 - ADDI - I-type
     /// ADDIU rt, rs, immediate
     /// GPR[rt] = GPR[rs] + sign_extended(immediate_value)
