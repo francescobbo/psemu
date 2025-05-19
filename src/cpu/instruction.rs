@@ -9,6 +9,9 @@ bitfield! {
     /// The opcode field (6 bits) identifies the operation to be performed
     pub opcode, _: 31, 26;
 
+    /// The jump address field (26 bits) is used for unconditional jumps
+    pub jump_target, _: 25, 0;
+
     /// The RS field (5 bits) specifies the source register index
     pub u8, into usize, rs, _: 25, 21;
 
