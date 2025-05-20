@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 bitfield = "0.19"
 psdisasm = "0.1.0"
+rustyline = "15.0.0"

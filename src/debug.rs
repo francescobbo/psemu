@@ -1,8 +1,8 @@
 use crate::{
-    cpu::{Cpu, Instruction},
+    cpu::Cpu,
     ram::AccessSize,
 };
-use std::io::Write;
+use rustyline::{DefaultEditor, error::ReadlineError};
 
 #[derive(Debug)]
 pub struct Debugger {
@@ -11,6 +11,9 @@ pub struct Debugger {
 
     /// And instance of the disassembler, with its settings
     disasm: psdisasm::Disasm,
+
+    /// Rustyline instance for command line input, with no special configuration.
+    editor: DefaultEditor,
 }
 
 const REGISTERS: [&str; 32] = [
@@ -19,12 +22,18 @@ const REGISTERS: [&str; 32] = [
     "$k0", "$k1", "$gp", "$sp", "$fp", "$ra",
 ];
 
+const HISTORY_FILE: &str = ".dbg_history";
+
 impl Debugger {
     /// Create a new debugger instance
     pub fn new() -> Self {
+        let mut editor = DefaultEditor::new().unwrap();
+        let _ = editor.load_history(HISTORY_FILE);
+
         Debugger {
             stepping: false,
             disasm: psdisasm::Disasm::default(),
+            editor,
         }
     }
 
@@ -40,7 +49,10 @@ impl Debugger {
 
         loop {
             // Read a command from the user
-            let line = self.read_line();
+            let Some(line) = self.read_line() else {
+                // If we couldn't read a line, just continue
+                return true;
+            };
 
             // Take the first word as the command
             let mut parts = line.split_whitespace();
@@ -98,18 +110,25 @@ impl Debugger {
     }
 
     /// Read a line from the user
-    pub fn read_line(&mut self) -> String {
-        let mut line = String::new();
+    pub fn read_line(&mut self) -> Option<String> {
+        match self.editor.readline("> ") {
+            Ok(line) => {
+                // Add the line to the history
+                let line = line.trim().to_string();
 
-        // Print the prompt
-        print!("> ");
-        std::io::stdout().flush().unwrap();
+                // Add the line to the history
+                let _ = self.editor.add_history_entry(&line);
 
-        // Read a line from stdin
-        std::io::stdin().read_line(&mut line).unwrap();
-
-        // Remove trailing spaces and newlines
-        line.trim().to_string()
+                Some(line)
+            }
+            Err(ReadlineError::Interrupted) => {
+                None
+            }
+            Err(_) => {
+                println!("Error reading line");
+                Some(String::new())
+            }
+        }
     }
 
     /// Prints the contents of the registers
@@ -122,7 +141,10 @@ impl Debugger {
             }
         }
 
-        println!("   pc -> {:08x}", cpu.pc);
+        println!(
+            "   pc -> {:08x}     hi -> {:08x}     lo -> {:08x}",
+            cpu.pc, cpu.hi, cpu.lo
+        );
 
         if let Some(load_delay) = &cpu.load_delay {
             println!(
@@ -139,5 +161,13 @@ impl Debugger {
             Ok(value) => println!("{address:08x}: {value:08x}"),
             Err(_) => println!("Error reading memory at address {address:08x}"),
         }
+    }
+}
+
+impl Drop for Debugger {
+    fn drop(&mut self) {
+        println!("Saving history...");
+        // Save the history to a file
+        let _ = self.editor.save_history(HISTORY_FILE);
     }
 }
