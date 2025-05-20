@@ -5,15 +5,15 @@ mod load_store;
 mod logic;
 mod test_utils;
 
-use crate::ram::Ram;
+use crate::bus::{AccessError, Bus};
 pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
 
 #[derive(Debug)]
 pub struct Cpu {
-    /// RAM instance to access memory.
-    pub ram: Ram,
+    /// I/O bus that connects the CPU to the rest of the system.
+    pub bus: Bus,
 
     /// The CPU's general-purpose registers.
     pub registers: [u32; NUM_REGISTERS],
@@ -57,7 +57,7 @@ pub struct DelayedLoad {
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
-            ram: Ram::new(),
+            bus: Bus::new(),
             registers: [0; NUM_REGISTERS],
             hi: 0,
             lo: 0,
@@ -227,13 +227,18 @@ impl Cpu {
         self.last_written_register = 0;
     }
 
-    /// Read a value from memory.
-    pub fn read_memory(&self, address: u32, size: usize) -> Result<u32, ()> {
-        Ok(self.ram.read(address, size))
+    /// Performs a memory read operation.
+    pub fn read_memory(&self, address: u32, size: usize) -> Result<u32, AccessError> {
+        self.bus.read(address, size)
     }
 
-    /// Write a value to memory.
-    pub fn write_memory(&mut self, address: u32, value: u32, size: usize) -> Result<(), ()> {
-        Ok(self.ram.write(address, value, size))
+    /// Performs a memory write operation.
+    pub fn write_memory(
+        &mut self,
+        address: u32,
+        value: u32,
+        size: usize,
+    ) -> Result<(), AccessError> {
+        self.bus.write(address, value, size)
     }
 }

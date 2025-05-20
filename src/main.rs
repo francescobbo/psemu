@@ -1,3 +1,4 @@
+mod bus;
 mod cpu;
 mod debug;
 mod emulator;
@@ -19,7 +20,7 @@ fn main() {
     emulator.debugger.stepping = true;
 
     let rom = read_rom(&args[1]);
-    load_rom(&mut emulator.cpu.ram, rom, 0);
+    load_rom(&mut emulator.cpu.bus.ram, rom, 0);
 
     // Run forever
     emulator.run();
