@@ -32,7 +32,11 @@ impl Debugger {
     pub fn enter(&mut self, cpu: &mut Cpu) -> bool {
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, AccessSize::Word).unwrap();
-        println!("[{:08x}]    {}", cpu.pc, self.disasm.disasm(ins, cpu.pc));
+        println!(
+            "[{:08x}]    {}",
+            cpu.pc,
+            self.disasm.disasm(ins, cpu.pc)
+        );
 
         loop {
             // Read a command from the user
@@ -121,7 +125,10 @@ impl Debugger {
         println!("   pc -> {:08x}", cpu.pc);
 
         if let Some(load_delay) = &cpu.load_delay {
-            println!("Pending load: {} -> {:08x}", REGISTERS[load_delay.target], load_delay.value);
+            println!(
+                "Pending load: {} -> {:08x}",
+                REGISTERS[load_delay.target], load_delay.value
+            );
         }
     }
 

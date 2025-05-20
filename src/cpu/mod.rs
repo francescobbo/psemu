@@ -18,6 +18,12 @@ pub struct Cpu {
     /// The CPU's general-purpose registers.
     pub registers: [u32; NUM_REGISTERS],
 
+    /// The HI register
+    pub hi: u32,
+
+    /// The LO register
+    pub lo: u32,
+
     /// The program counter, which points to the next instruction
     pub pc: u32,
 
@@ -59,6 +65,8 @@ impl Cpu {
         Cpu {
             ram: Ram::new(),
             registers: [0; NUM_REGISTERS],
+            hi: 0,
+            lo: 0,
             pc: 0,
             branch_target: None,
             current_branch_target: None,
@@ -117,6 +125,12 @@ impl Cpu {
                     0x07 => self.ins_srav(instruction),
                     0x08 => self.ins_jr(instruction),
                     0x09 => self.ins_jalr(instruction),
+                    0x10 => self.ins_mfhi(instruction),
+                    0x11 => self.ins_mthi(instruction),
+                    0x12 => self.ins_mflo(instruction),
+                    0x13 => self.ins_mtlo(instruction),
+                    0x18 => self.ins_mult(instruction),
+                    0x19 => self.ins_multu(instruction),
                     0x20 => self.ins_add(instruction),
                     0x21 => self.ins_addu(instruction),
                     0x22 => self.ins_sub(instruction),
@@ -227,7 +241,7 @@ impl Cpu {
             self.registers[load.target] = load.value;
         }
 
-        // Reset the write register to 0 for the next cycle
+        // Reset the last written register for the next cycle
         self.last_written_register = 0;
     }
 
