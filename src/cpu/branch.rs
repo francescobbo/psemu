@@ -138,7 +138,9 @@ impl Cpu {
 mod tests {
     use super::*;
 
-    const fn nop() -> u32 { 0x00000000 }
+    const fn nop() -> u32 {
+        0x00000000
+    }
 
     // Helper to create a CPU, load instructions, and run 2 steps
     fn build(initial_pc: u32, instructions: &[u32]) -> Cpu {
@@ -165,7 +167,11 @@ mod tests {
     // Helper to create an R-Type instruction word
     fn r_type(funct: u32, rs: usize, rt: usize, rd: usize, shamt: usize) -> u32 {
         // opcode for SPECIAL is 0x00
-        ((rs as u32) << 21) | ((rt as u32) << 16) | ((rd as u32) << 11) | ((shamt as u32) << 6) | funct
+        ((rs as u32) << 21)
+            | ((rt as u32) << 16)
+            | ((rd as u32) << 11)
+            | ((shamt as u32) << 6)
+            | funct
     }
 
     // --- J ---
@@ -199,7 +205,7 @@ mod tests {
         assert_eq!(cpu.registers[31], 0x100 + 8, "JAL RA should be PC+8");
     }
 
-        #[test]
+    #[test]
     fn jal_in_delay_slot_of_jal() {
         // PC=0x100: JAL 0x2000 (Target1 = 0x2000, RA1 = 0x108)
         // PC=0x104: JAL 0x3000 (Target2 = 0x3000, RA2 = 0x10C (PC of JAL in delay slot + 8))
@@ -208,8 +214,8 @@ mod tests {
         // Expected $ra = 0x10C (from the second JAL)
 
         let initial_pc = 0x0100;
-        let jal1_instr = j_type(0x03, 0x2000); 
-        let jal2_instr = j_type(0x03, 0x3000); 
+        let jal1_instr = j_type(0x03, 0x2000);
+        let jal2_instr = j_type(0x03, 0x3000);
 
         let mut cpu = build(initial_pc, &[jal1_instr, jal2_instr, nop()]);
         cpu.registers[31] = 0xdeadbeef; // sentinel to check overwritten anyway
@@ -217,9 +223,13 @@ mod tests {
         cpu.step(); // Exec JAL1. Sets next_pc=Some(0x2000). $ra=0x108. cpu.pc=0x104.
         cpu.step(); // Exec JAL2 (delay slot of JAL1).
         cpu.step(); // Exec NOP (delay slot of JAL2). cpu.pc becomes 0x3000.
-        
+
         assert_eq!(cpu.pc, 0x3000, "JAL in JAL's delay slot: PC check");
-        assert_eq!(cpu.registers[31], 0x0104 + 8, "JAL in JAL's delay slot: $ra check");
+        assert_eq!(
+            cpu.registers[31],
+            0x0104 + 8,
+            "JAL in JAL's delay slot: $ra check"
+        );
     }
 
     // --- JR ---
@@ -268,7 +278,11 @@ mod tests {
 
         assert_eq!(cpu.pc, 0x0000_3000, "JALR custom rd PC");
         assert_eq!(cpu.registers[2], 0x100 + 8, "JALR RA in R2");
-        assert_ne!(cpu.registers[31], 0x100 + 8, "JALR RA not in R31 unless R2 was R31");
+        assert_ne!(
+            cpu.registers[31],
+            0x100 + 8,
+            "JALR RA not in R31 unless R2 was R31"
+        );
     }
 
     // --- BEQ ---
@@ -452,7 +466,7 @@ mod tests {
     fn test_bltz_taken() {
         // BLTZ $1, offset. $1 = -1. rt field is 0x00.
         let bltz_instr = i_type(0x01, 1, 0x00, 5);
-        
+
         let mut cpu = build(0x100, &[bltz_instr, nop()]);
         cpu.registers[1] = -1i32 as u32;
 
@@ -480,7 +494,7 @@ mod tests {
     fn test_bgez_taken() {
         // BGEZ $1, offset. $1 = 0. rt field is 0x01.
         let bgez_instr = i_type(0x01, 1, 0x01, 6);
-        
+
         let mut cpu = build(0x100, &[bgez_instr, nop()]);
         cpu.registers[1] = 0;
 
@@ -493,7 +507,7 @@ mod tests {
     #[test]
     fn test_bgez_not_taken() {
         let bgez_instr = i_type(0x01, 1, 0x01, 6);
-        
+
         let mut cpu = build(0x100, &[bgez_instr, nop()]);
         cpu.registers[1] = -1i32 as u32; // Not >= zero
 
@@ -508,7 +522,7 @@ mod tests {
     fn test_bltzal_taken() {
         // BLTZAL $1, offset. $1 = -1. rt field is 0x10.
         let bltzal_instr = i_type(0x01, 1, 0x10, 7);
-        
+
         let mut cpu = build(0x100, &[bltzal_instr, nop()]);
         cpu.registers[1] = -1i32 as u32;
 
@@ -532,7 +546,10 @@ mod tests {
         cpu.step();
 
         assert_eq!(cpu.pc, 0x100 + 8, "BLTZAL not taken PC");
-        assert_ne!(cpu.registers[31], 0xdeadbeef, "BLTZAL RA not taken, $ra unchanged");
+        assert_ne!(
+            cpu.registers[31], 0xdeadbeef,
+            "BLTZAL RA not taken, $ra unchanged"
+        );
     }
 
     // BGEZAL: rt = 0x11
@@ -564,6 +581,9 @@ mod tests {
         cpu.step();
 
         assert_eq!(cpu.pc, 0x100 + 8, "BGEZAL not taken PC");
-        assert_ne!(cpu.registers[31], 0xdeadbeef, "BGEZAL RA not taken, $ra unchanged");
+        assert_ne!(
+            cpu.registers[31], 0xdeadbeef,
+            "BGEZAL RA not taken, $ra unchanged"
+        );
     }
 }

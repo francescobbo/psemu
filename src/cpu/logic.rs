@@ -375,7 +375,7 @@ mod tests {
         // SLLV r3, r2, r1
         cpu.registers[1] = 4;
         cpu.registers[2] = 0x0000_000f;
-        cpu.execute(Instruction(0x00221804)); 
+        cpu.execute(Instruction(0x00221804));
 
         assert_eq!(cpu.registers[3], 0x0000_00f0);
         assert_eq!(cpu.registers[1], 4);
@@ -390,7 +390,7 @@ mod tests {
         cpu.registers[1] = 0;
         cpu.registers[2] = 0xabcd_1234;
         cpu.execute(Instruction(0x00221804));
-        
+
         assert_eq!(cpu.registers[3], 0xabcd_1234);
     }
 
@@ -427,7 +427,7 @@ mod tests {
         cpu.registers[1] = 4;
         cpu.registers[2] = 0xf000_0000;
         cpu.execute(Instruction(0x00221806));
-        
+
         assert_eq!(cpu.registers[3], 0x0f00_0000);
     }
 
@@ -439,7 +439,7 @@ mod tests {
         cpu.registers[1] = 31;
         cpu.registers[2] = 0xf00d_beef;
         cpu.execute(Instruction(0x00221806));
-        
+
         assert_eq!(cpu.registers[3], 0x0000_0001); // (0xf00d_beef >> 31)
     }
 
@@ -474,7 +474,7 @@ mod tests {
         cpu.registers[1] = 31;
         cpu.registers[2] = 0xf00d_beef;
         cpu.execute(Instruction(0x00221807));
-        
+
         assert_eq!(cpu.registers[3], 0xffff_ffff);
     }
 
@@ -523,13 +523,13 @@ mod tests {
 
         cpu.registers[1] = 0xf000_0000; // 11110000...
         cpu.registers[2] = 0x0000_000f; // 00000000...00001111
-                                        // OR result: 0xf000000f (11110000...00001111)
-                                        // NOR result:0x0ffffff0 (00001111...11110000)
+        // OR result: 0xf000000f (11110000...00001111)
+        // NOR result:0x0ffffff0 (00001111...11110000)
         cpu.execute(Instruction(0x00221827));
-        
+
         assert_eq!(cpu.registers[3], 0x0fff_fff0);
     }
-    
+
     #[test]
     fn test_nor_both_zero() {
         let mut cpu = Cpu::new();
@@ -569,12 +569,12 @@ mod tests {
     #[test]
     fn test_slt_equal_positive() {
         let mut cpu = Cpu::new();
-        
+
         // SLT r3, r1, r2
         cpu.registers[1] = 10;
         cpu.registers[2] = 10;
         cpu.execute(Instruction(0x0022182a));
-        
+
         assert_eq!(cpu.registers[3], 0);
     }
 
@@ -593,7 +593,7 @@ mod tests {
     #[test]
     fn test_slt_negative_less_than_negative() {
         let mut cpu = Cpu::new();
-        
+
         // SLT r3, r1, r2
         cpu.registers[1] = -10i32 as u32;
         cpu.registers[2] = -5i32 as u32;
@@ -634,38 +634,38 @@ mod tests {
         cpu.registers[1] = 20;
         cpu.registers[2] = 10;
         cpu.execute(Instruction(0x0022182b));
-        
+
         assert_eq!(cpu.registers[3], 0);
     }
-    
+
     #[test]
     fn test_sltu_equal() {
         let mut cpu = Cpu::new();
-        
+
         // SLTU r3, r1, r2
         cpu.registers[1] = 10;
         cpu.registers[2] = 10;
         cpu.execute(Instruction(0x0022182b));
-        
+
         assert_eq!(cpu.registers[3], 0);
     }
 
     #[test]
     fn test_sltu_negative_vs_positive() {
         let mut cpu = Cpu::new();
-        
+
         // SLTU r3, r1, r2
         cpu.registers[1] = -5i32 as u32;
         cpu.registers[2] = 5;
         cpu.execute(Instruction(0x0022182b));
-        
+
         assert_eq!(cpu.registers[3], 0);
     }
 
     #[test]
     fn test_sltu_max_unsigned_vs_zero() {
         let mut cpu = Cpu::new();
-        
+
         // SLTU r3, r1, r2
         cpu.registers[1] = 0xffffffff;
         cpu.registers[2] = 0;
