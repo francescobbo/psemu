@@ -1,6 +1,6 @@
 use crate::{
     cpu::Cpu,
-    ram::AccessSize,
+    bus::AccessSize,
 };
 use rustyline::{DefaultEditor, error::ReadlineError};
 

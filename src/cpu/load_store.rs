@@ -1,5 +1,5 @@
-use crate::ram::AccessSize;
 use super::{Cpu, DelayedLoad, Instruction};
+use crate::bus::AccessSize;
 
 impl Cpu {
     fn delayed_load(&mut self, target: usize, value: u32) {
@@ -346,7 +346,8 @@ mod tests {
             ],
         );
 
-        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word);
+        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word)
+            .unwrap();
 
         // Execute LW $t0, 0($s0)
         // - $t0 should still be initial_t0_val at the *end* of this step's GPR state.
@@ -397,7 +398,8 @@ mod tests {
                 r_type(0x21, 9, 0, 0),
             ],
         );
-        cpu.write_memory(mem_addr as u32, value_in_memory, AccessSize::Word);
+        cpu.write_memory(mem_addr as u32, value_in_memory, AccessSize::Word)
+            .unwrap();
 
         cpu.step();
         assert_eq!(cpu.registers[0], 0);
@@ -433,7 +435,8 @@ mod tests {
                 r_type(0x21, 10, 0, 8),
             ],
         );
-        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word);
+        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word)
+            .unwrap();
 
         cpu.step(); // Execute LW $t0, ...
         // After this step, $t0 still initial_t0_val, pending_load is Some for $t0
@@ -470,8 +473,10 @@ mod tests {
                 r_type(0x21, 10, 9, 8),
             ],
         );
-        cpu.write_memory(mem_addr, value_in_memory1, AccessSize::Word);
-        cpu.write_memory(mem_addr + 4, value_in_memory2, AccessSize::Word);
+        cpu.write_memory(mem_addr, value_in_memory1, AccessSize::Word)
+            .unwrap();
+        cpu.write_memory(mem_addr + 4, value_in_memory2, AccessSize::Word)
+            .unwrap();
 
         cpu.step(); // Execute LW $t0, ...
         assert_eq!(cpu.registers[8], 0xcafe_cafe);
