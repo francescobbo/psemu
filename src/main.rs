@@ -1,10 +1,11 @@
+mod bus;
 mod cpu;
 mod debug;
 mod emulator;
 mod ram;
 
+use bus::AccessSize;
 use emulator::Emulator;
-use ram::AccessSize;
 use std::io::Read;
 
 fn main() {

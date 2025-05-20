@@ -156,10 +156,10 @@ impl Cpu {
     pub(super) fn ins_addi(&mut self, instr: Instruction) {
         let value = self.get_rs(instr) as i32;
         let immediate = instr.simm16();
-        
+
         match value.checked_add(immediate) {
             Some(result) => self.write_reg(instr.rt(), result as u32),
-            None => self.exception("Overflow")
+            None => self.exception("Overflow"),
         }
     }
 
@@ -375,18 +375,14 @@ mod tests {
     #[test]
     fn test_addu() {
         let mut cpu = test_cpu(
-            &[
-                (1, 1234),
-                (2, 0xffffffff),
-                (3, 15),
-                (7, 1)],
+            &[(1, 1234), (2, 0xffffffff), (3, 15), (7, 1)],
             &[
                 // ADDU r8, r7, r0
                 r_type(0x21, 8, 0, 7),
                 // ADDU r9, r7, r1
                 r_type(0x21, 9, 1, 7),
                 // ADDU r10, r7, r2
-                r_type(0x21, 10,2, 7),
+                r_type(0x21, 10, 2, 7),
                 // ADDU r0, r7, r3
                 r_type(0x21, 0, 3, 7),
                 // ADDU r11, r2, r2
