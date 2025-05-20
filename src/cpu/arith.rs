@@ -4,28 +4,28 @@ impl Cpu {
     /// 00.10 - MFHI - R-Type
     /// MFHI rd
     /// GPR[rd] = HI
-    pub fn ins_mfhi(&mut self, instruction: Instruction) {
+    pub(super) fn ins_mfhi(&mut self, instruction: Instruction) {
         self.write_reg(instruction.rd(), self.hi);
     }
 
     /// 00.11 - MTHI - R-Type
     /// MTHI rs
     /// HI = GPR[rs]
-    pub fn ins_mthi(&mut self, instruction: Instruction) {
+    pub(super) fn ins_mthi(&mut self, instruction: Instruction) {
         self.hi = self.get_rs(instruction);
     }
 
     /// 00.12 - MFLO - R-Type
     /// MFLO rd
     /// GPR[rd] = LO
-    pub fn ins_mflo(&mut self, instruction: Instruction) {
+    pub(super) fn ins_mflo(&mut self, instruction: Instruction) {
         self.write_reg(instruction.rd(), self.lo);
     }
 
     /// 00.13 - MTLO - R-Type
     /// MTLO rs
     /// LO = GPR[rs]
-    pub fn ins_mtlo(&mut self, instruction: Instruction) {
+    pub(super) fn ins_mtlo(&mut self, instruction: Instruction) {
         self.lo = self.get_rs(instruction);
     }
 
@@ -34,7 +34,7 @@ impl Cpu {
     /// result = sign_extended64(GPR[rs]) * sign_extended64(GPR[rt])
     /// HI = result[63:32]
     /// LO = result[31:0]
-    pub fn ins_mult(&mut self, instruction: Instruction) {
+    pub(super) fn ins_mult(&mut self, instruction: Instruction) {
         let rs = self.get_rs(instruction) as i32 as i64;
         let rt = self.get_rt(instruction) as i32 as i64;
         let result = rs.wrapping_mul(rt);
@@ -48,13 +48,61 @@ impl Cpu {
     /// result = GPR[rs] * GPR[rt]
     /// HI = result[63:32]
     /// LO = result[31:0]
-    pub fn ins_multu(&mut self, instruction: Instruction) {
+    pub(super) fn ins_multu(&mut self, instruction: Instruction) {
         let rs = self.get_rs(instruction) as u64;
         let rt = self.get_rt(instruction) as u64;
         let result = rs.wrapping_mul(rt);
 
         self.hi = (result >> 32) as u32;
         self.lo = result as u32;
+    }
+
+    /// 00.1A - DIV - R-Type
+    /// DIV rs, rt
+    /// HI = GPR[rs] % GPR[rt]
+    /// LO = GPR[rs] / GPR[rt]
+    pub(super) fn ins_div(&mut self, instruction: Instruction) {
+        let dividend = self.get_rs(instruction) as i32;
+        let divisor = self.get_rt(instruction) as i32;
+
+        println!(
+            "DIV: dividend = {}, divisor = {}",
+            instruction.rs(),
+            instruction.rt()
+        );
+        println!("DIV: dividend = {:#x}, divisor = {:#x}", dividend, divisor);
+
+        if divisor == 0 {
+            self.hi = dividend as u32;
+            if dividend >= 0 {
+                self.lo = 0xffff_ffff;
+            } else {
+                self.lo = 1;
+            }
+        } else if dividend as u32 == 0x8000_0000 && divisor == -1 {
+            self.hi = 0;
+            self.lo = 0x8000_0000;
+        } else {
+            self.hi = (dividend % divisor) as u32;
+            self.lo = (dividend / divisor) as u32;
+        }
+    }
+
+    /// 00.1B - DIVU - R-Type
+    /// DIVU rs, rt
+    /// HI = GPR[rs] % GPR[rt]
+    /// LO = GPR[rs] / GPR[rt]
+    pub(super) fn ins_divu(&mut self, instruction: Instruction) {
+        let dividend = self.get_rs(instruction);
+        let divisor = self.get_rt(instruction);
+
+        if divisor == 0 {
+            self.hi = dividend;
+            self.lo = 0xffff_ffff;
+        } else {
+            self.hi = dividend % divisor;
+            self.lo = dividend / divisor;
+        }
     }
 
     /// 00.21 - ADDU - R-Type
@@ -201,18 +249,18 @@ mod tests {
     #[test]
     fn test_mult() {
         let mut cpu = Cpu::new();
-        
+
         cpu.registers[7] = 0x0000_0002;
         cpu.registers[8] = 0x0000_0003;
         cpu.execute(Instruction(0x01070018)); // MULT r7, r8
-        
+
         assert_eq!(cpu.hi, 0);
         assert_eq!(cpu.lo, 6);
 
         cpu.registers[7] = 0x8000_0002; // this gets sign-extended
         cpu.registers[8] = 4;
         cpu.execute(Instruction(0x01070018)); // MULT r7, r8
-        
+
         assert_eq!(cpu.hi, 0xffff_fffe); // the result is negative
         assert_eq!(cpu.lo, 8);
     }
@@ -220,19 +268,85 @@ mod tests {
     #[test]
     fn test_multu() {
         let mut cpu = Cpu::new();
-        
+
         cpu.registers[7] = 0x0000_0002;
         cpu.registers[8] = 0x0000_0003;
         cpu.execute(Instruction(0x01070019)); // MULTU r7, r8
-        
+
         assert_eq!(cpu.hi, 0);
         assert_eq!(cpu.lo, 6);
 
         cpu.registers[7] = 0x8000_0002; // this does not get sign-extended
         cpu.registers[8] = 4;
         cpu.execute(Instruction(0x01070019)); // MULTU r7, r8
-        
+
         assert_eq!(cpu.hi, 2); // the result is positive
         assert_eq!(cpu.lo, 8);
+    }
+
+    #[test]
+    fn test_div() {
+        let mut cpu = Cpu::new();
+
+        cpu.registers[7] = 0x0000_0002;
+        cpu.registers[8] = 0x0000_0003;
+        cpu.execute(Instruction(0x0107001A)); // DIV r8, r7
+
+        assert_eq!(cpu.hi, 1);
+        assert_eq!(cpu.lo, 1);
+
+        cpu.registers[7] = -1i32 as u32;
+        cpu.registers[8] = 0x8000_0002; // this gets sign-extended
+        cpu.execute(Instruction(0x0107001A)); // DIV r8, r7
+
+        assert_eq!(cpu.hi, 0);
+        assert_eq!(cpu.lo, 0x7fff_fffe);
+
+        cpu.registers[7] = 0;
+        cpu.registers[8] = 5;
+        cpu.execute(Instruction(0x0107001A)); // DIV r8, r7
+
+        assert_eq!(cpu.hi, 5);
+        assert_eq!(cpu.lo, 0xffff_ffff);
+
+        cpu.registers[7] = 0;
+        cpu.registers[8] = -5i32 as u32;
+        cpu.execute(Instruction(0x0107001A)); // DIV r8, r7
+
+        assert_eq!(cpu.hi, -5i32 as u32);
+        assert_eq!(cpu.lo, 1);
+
+        cpu.registers[7] = -1i32 as u32;
+        cpu.registers[8] = 0x8000_0000; // largest negative number
+        cpu.execute(Instruction(0x0107001A)); // DIV r8, r7
+
+        assert_eq!(cpu.hi, 0);
+        assert_eq!(cpu.lo, 0x8000_0000);
+    }
+
+    #[test]
+    fn test_divu() {
+        let mut cpu = Cpu::new();
+
+        cpu.registers[7] = 0x0000_0002;
+        cpu.registers[8] = 0x0000_0003;
+        cpu.execute(Instruction(0x0107001B)); // DIVU r8, r7
+
+        assert_eq!(cpu.hi, 1);
+        assert_eq!(cpu.lo, 1);
+
+        cpu.registers[7] = -1i32 as u32;
+        cpu.registers[8] = 0x8000_0002; // this does not get sign-extended
+        cpu.execute(Instruction(0x0107001B)); // DIVU r8, r7
+
+        assert_eq!(cpu.hi, 0x80000002);
+        assert_eq!(cpu.lo, 0);
+
+        cpu.registers[7] = 0;
+        cpu.registers[8] = 5;
+        cpu.execute(Instruction(0x0107001B)); // DIVU r8, r7
+
+        assert_eq!(cpu.hi, 5);
+        assert_eq!(cpu.lo, 0xffff_ffff);
     }
 }

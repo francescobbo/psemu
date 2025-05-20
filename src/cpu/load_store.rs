@@ -7,10 +7,7 @@ impl Cpu {
             return;
         }
 
-        self.load_delay = Some(DelayedLoad {
-            target,
-            value,
-        });
+        self.load_delay = Some(DelayedLoad { target, value });
     }
 
     /// 20 - LB - I-type
