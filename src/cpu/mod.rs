@@ -21,9 +21,31 @@ pub struct Cpu {
     /// The program counter, which points to the next instruction
     pub pc: u32,
 
-    /// The target of a branch instruction, which will be
-    /// placed in PC after the delay slot.
+    /// The target of a branch instruction, which will be placed in PC after the
+    /// delay slot.
     pub next_pc: Option<u32>,
+
+    /// The load delay slot: a load operation that is not completed in the same
+    /// cycle as the instruction that performed it.
+    pub load_delay: Option<DelayedLoad>,
+
+    /// The delayed load operation that is currently in progress, and will be
+    /// persisted at the end of the current cycle.
+    pub current_load_delay: Option<DelayedLoad>,
+
+    /// The index of the register written to in the current cycle, if any.
+    /// This is used to ignore the load delay writeback
+    pub last_written_register: usize,
+}
+
+#[derive(Debug)]
+/// Represents a delayed load operation.
+pub struct DelayedLoad {
+    /// The register to load to
+    pub target: usize,
+
+    /// The value to load
+    pub value: u32,
 }
 
 impl Cpu {
@@ -33,6 +55,9 @@ impl Cpu {
             registers: [0; NUM_REGISTERS],
             pc: 0,
             next_pc: None,
+            load_delay: None,
+            current_load_delay: None,
+            last_written_register: 0,
         }
     }
 
@@ -40,6 +65,8 @@ impl Cpu {
     pub fn step(&mut self) {
         // Take the target of the branch instruction, if we are in a delay slot.
         let jump_target = self.next_pc.take();
+        // Take the load delay, if we have one.
+        self.current_load_delay = self.load_delay.take();
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
@@ -59,6 +86,9 @@ impl Cpu {
                 self.pc = target;
             }
         }
+
+        // If we have a delayed load, we need to write the value to the target
+        self.handle_load_delay();
     }
 
     /// Fetch the instruction from the given address.
@@ -149,9 +179,32 @@ impl Cpu {
     /// Write a value to a GPR register
     fn write_reg(&mut self, index: usize, value: u32) {
         // The zero register (R0) is always 0, so we don't allow writing to it
-        if index != 0 {
-            self.registers[index] = value;
+        if index == 0 {
+            return;
         }
+
+        self.registers[index] = value;
+
+        // Remember that we wrote to this register in the current cycle
+        self.last_written_register = index;
+    }
+
+    /// Completes a delayed load operation, unless it was started in the same
+    /// cycle. Otherwise it marks the load for writeback in the next cycle.
+    fn handle_load_delay(&mut self) {
+        if let Some(load) = self.current_load_delay.take() {
+            // Check if the last instruction was a direct write to the same register
+            if self.last_written_register == load.target {
+                // Ignore the load
+                return;
+            }
+
+            // Write the value to the target register
+            self.registers[load.target] = load.value;
+        }
+
+        // Reset the write register to 0 for the next cycle
+        self.last_written_register = 0;
     }
 
     /// Read a value from memory.
