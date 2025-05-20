@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::{cpu::Cpu, ram::AccessSize};
+use crate::{bus::AccessSize, cpu::Cpu};
 
 const INITIAL_PC: u32 = 0x0000_1000;
 

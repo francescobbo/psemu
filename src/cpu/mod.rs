@@ -3,12 +3,14 @@ mod branch;
 mod instruction;
 mod load_store;
 mod logic;
+mod memory;
 #[cfg(test)]
 mod test_utils;
 
+use crate::bus::Bus;
 pub use instruction::Instruction;
 
-use crate::ram::{AccessSize, Ram};
+use crate::bus::AccessSize;
 
 const NUM_REGISTERS: usize = 32;
 
@@ -25,8 +27,8 @@ pub struct Cpu {
     /// The program counter, which points to the next instruction
     pub pc: u32,
 
-    /// RAM instance to access memory.
-    pub ram: Ram,
+    /// I/O bus that connects the CPU to the rest of the system.
+    pub bus: Bus,
 
     /// The target of a branch instruction, which will be placed in PC after the
     /// delay slot.
@@ -61,11 +63,11 @@ pub struct DelayedLoad {
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
-            ram: Ram::new(),
             registers: [0; NUM_REGISTERS],
             hi: 0,
             lo: 0,
             pc: 0,
+            bus: Bus::new(),
             branch_target: None,
             current_branch_target: None,
             load_delay: None,
@@ -142,7 +144,11 @@ impl Cpu {
                     0x2a => self.ins_slt(instruction),
                     0x2b => self.ins_sltu(instruction),
                     _ => {
-                        println!("Unimplemented funct: {:02x} @ {:08x}", instruction.funct(), self.pc - 4);
+                        println!(
+                            "Unimplemented funct: {:02x} @ {:08x}",
+                            instruction.funct(),
+                            self.pc - 4
+                        );
                         self.exception("Unimplemented funct");
                     }
                 }
@@ -155,7 +161,11 @@ impl Cpu {
                     0x10 => self.ins_bltzal(instruction),
                     0x11 => self.ins_bgezal(instruction),
                     _ => {
-                        println!("Unimplemented funct: {:02x} @ {:08x}", instruction.rt(), self.pc - 4);
+                        println!(
+                            "Unimplemented funct: {:02x} @ {:08x}",
+                            instruction.rt(),
+                            self.pc - 4
+                        );
                         self.exception("Unimplemented funct");
                     }
                 }
@@ -187,7 +197,11 @@ impl Cpu {
             0x2b => self.ins_sw(instruction),
             0x2e => self.ins_swr(instruction),
             _ => {
-                println!("Unimplemented opcode: {:02x} @ {:08x}", instruction.funct(), self.pc - 4);
+                println!(
+                    "Unimplemented opcode: {:02x} @ {:08x}",
+                    instruction.funct(),
+                    self.pc - 4
+                );
                 self.exception("Unimplemented funct");
             }
         }
@@ -239,17 +253,6 @@ impl Cpu {
 
         // Reset the last written register for the next cycle
         self.last_written_register = 0;
-    }
-
-    /// Read a value from memory.
-    pub fn read_memory(&self, address: u32, size: AccessSize) -> Result<u32, ()> {
-        Ok(self.ram.read(address, size))
-    }
-
-    /// Write a value to memory.
-    pub fn write_memory(&mut self, address: u32, value: u32, size: AccessSize) -> Result<(), ()> {
-        self.ram.write(address, value, size);
-        Ok(())
     }
 
     /// Raises an exception (stub for now)

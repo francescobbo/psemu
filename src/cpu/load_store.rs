@@ -1,5 +1,5 @@
-use crate::ram::AccessSize;
 use super::{Cpu, DelayedLoad, Instruction};
+use crate::bus::AccessSize;
 
 impl Cpu {
     fn delayed_load(&mut self, target: usize, value: u32) {
@@ -16,7 +16,7 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lb(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         if let Ok(value) = self.read_memory(address, AccessSize::Byte) {
             // Sign-extend the byte value
             let value = value as i8 as u32;
@@ -31,7 +31,7 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 16-bit])
     pub(super) fn ins_lh(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         if let Ok(value) = self.read_memory(address, AccessSize::HalfWord) {
             // Sign-extend the half-word value
             let value = value as i16 as u32;
@@ -49,7 +49,7 @@ impl Cpu {
         let addr = self.target_address(instr);
 
         // Perform an aligned load of 4 bytes
-        let aligned_word = self.read_memory(addr & !3, 4).unwrap();
+        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap();
 
         // Get the current value of the register (even if it's delayed)
         let reg = self.get_possibly_delayed_reg(instr.rt());
@@ -71,7 +71,7 @@ impl Cpu {
     /// GPR[rt] = Memory[rs + offset, 32-bit]
     pub(super) fn ins_lw(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         if let Ok(value) = self.read_memory(address, AccessSize::Word) {
             self.delayed_load(instr.rt(), value);
         } else {
@@ -112,7 +112,7 @@ impl Cpu {
         let addr = self.target_address(instr);
 
         // Perform an aligned load of 4 bytes
-        let aligned_word = self.read_memory(addr & !3, 4).unwrap();
+        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap();
 
         let reg = self.get_possibly_delayed_reg(instr.rt());
 
@@ -134,7 +134,7 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        if self.write_memory(address, value, AccessSize::Byte) .is_err() {
+        if self.write_memory(address, value, AccessSize::Byte).is_err() {
             self.exception("Memory write error");
         }
     }
@@ -146,7 +146,10 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        if self.write_memory(address, value, AccessSize::HalfWord).is_err() {
+        if self
+            .write_memory(address, value, AccessSize::HalfWord)
+            .is_err()
+        {
             self.exception("Memory write error");
         }
     }
@@ -159,7 +162,7 @@ impl Cpu {
         let addr = self.target_address(instr);
 
         // Perform an aligned read of 4 bytes
-        let aligned_word = self.read_memory(addr & !3, 4).unwrap();
+        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap();
 
         // Get the current value of the register
         let reg = self.get_rt(instr);
@@ -174,7 +177,8 @@ impl Cpu {
         };
 
         // Write the modified value back to memory, aligned to a word boundary
-        self.write_memory(addr & !3, value, 4).unwrap();
+        self.write_memory(addr & !3, value, AccessSize::Word)
+            .unwrap();
     }
 
     /// 2B - SW - I-type
@@ -197,7 +201,7 @@ impl Cpu {
         let addr = self.target_address(instr);
 
         // Perform an aligned read of 4 bytes
-        let aligned_word = self.read_memory(addr & !3, 4).unwrap();
+        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap();
 
         // Get the current value of the register
         let reg = self.get_rt(instr);
@@ -212,7 +216,8 @@ impl Cpu {
         };
 
         // Write the modified value back to memory, aligned to a word boundary
-        self.write_memory(addr & !3, value, 4).unwrap();
+        self.write_memory(addr & !3, value, AccessSize::Word)
+            .unwrap();
     }
 
     fn get_possibly_delayed_reg(&self, index: usize) -> u32 {
@@ -263,7 +268,10 @@ mod tests {
 
         cpu_steps(&mut cpu, 2);
 
-        assert_eq!(cpu.read_memory(0x2000, AccessSize::HalfWord).unwrap(), 0x5678);
+        assert_eq!(
+            cpu.read_memory(0x2000, AccessSize::HalfWord).unwrap(),
+            0x5678
+        );
         assert_eq!(cpu.read_memory(0x1fff, AccessSize::Byte).unwrap(), 0x56);
 
         // Test that the store was done in little-endian order
@@ -283,11 +291,20 @@ mod tests {
         );
 
         cpu_steps(&mut cpu, 2);
-        assert_eq!(cpu.read_memory(0x1000, AccessSize::Word).unwrap(), 0x1234_5678);
-        assert_eq!(cpu.read_memory(0x0ffc, AccessSize::Word).unwrap(), 0x1234_5678);
+        assert_eq!(
+            cpu.read_memory(0x1000, AccessSize::Word).unwrap(),
+            0x1234_5678
+        );
+        assert_eq!(
+            cpu.read_memory(0x0ffc, AccessSize::Word).unwrap(),
+            0x1234_5678
+        );
 
         // Test that the store was done in little-endian order
-        assert_eq!(cpu.read_memory(0x1000, AccessSize::HalfWord).unwrap(), 0x5678);
+        assert_eq!(
+            cpu.read_memory(0x1000, AccessSize::HalfWord).unwrap(),
+            0x5678
+        );
     }
 
     /// Instruction in delay slot reads OLD value of LW's destination register.
@@ -313,7 +330,8 @@ mod tests {
             ],
         );
 
-        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word);
+        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word)
+            .unwrap();
 
         // Execute LW $t0, 0($s0)
         // - $t0 should still be initial_t0_val at the *end* of this step's GPR state.
@@ -364,7 +382,8 @@ mod tests {
                 r_type(0x21, 9, 0, 0),
             ],
         );
-        cpu.write_memory(mem_addr as u32, value_in_memory, AccessSize::Word);
+        cpu.write_memory(mem_addr as u32, value_in_memory, AccessSize::Word)
+            .unwrap();
 
         cpu.step();
         assert_eq!(cpu.registers[0], 0);
@@ -400,7 +419,8 @@ mod tests {
                 r_type(0x21, 10, 0, 8),
             ],
         );
-        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word);
+        cpu.write_memory(mem_addr, value_in_memory, AccessSize::Word)
+            .unwrap();
 
         cpu.step(); // Execute LW $t0, ...
         // After this step, $t0 still initial_t0_val, pending_load is Some for $t0
@@ -437,8 +457,10 @@ mod tests {
                 r_type(0x21, 10, 9, 8),
             ],
         );
-        cpu.write_memory(mem_addr, value_in_memory1, AccessSize::Word);
-        cpu.write_memory(mem_addr + 4, value_in_memory2, AccessSize::Word);
+        cpu.write_memory(mem_addr, value_in_memory1, AccessSize::Word)
+            .unwrap();
+        cpu.write_memory(mem_addr + 4, value_in_memory2, AccessSize::Word)
+            .unwrap();
 
         cpu.step(); // Execute LW $t0, ...
         assert_eq!(cpu.registers[8], 0xcafe_cafe);
