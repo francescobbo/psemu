@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 bitfield = "0.19"
+rustyline = "15.0.0"

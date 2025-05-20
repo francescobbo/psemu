@@ -129,6 +129,8 @@ impl Cpu {
                     0x13 => self.ins_mtlo(instruction),
                     0x18 => self.ins_mult(instruction),
                     0x19 => self.ins_multu(instruction),
+                    0x1a => self.ins_div(instruction),
+                    0x1b => self.ins_divu(instruction),
                     0x20 => self.ins_add(instruction),
                     0x21 => self.ins_addu(instruction),
                     0x22 => self.ins_sub(instruction),
