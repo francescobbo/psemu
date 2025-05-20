@@ -32,7 +32,7 @@ impl Debugger {
     pub fn enter(&mut self, cpu: &mut Cpu) -> bool {
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, AccessSize::Word).unwrap();
-        println!("[{:08x}] {}", cpu.pc, self.disasm.disasm(ins, cpu.pc));
+        println!("[{:08x}]    {}", cpu.pc, self.disasm.disasm(ins, cpu.pc));
 
         loop {
             // Read a command from the user
@@ -57,6 +57,26 @@ impl Debugger {
                     self.stepping = false;
                     break;
                 }
+                // Show the registers
+                "r" | "registers" => {
+                    Self::print_registers(cpu);
+                }
+                // Read memory
+                "rm" | "read-mem" => {
+                    // Get the address from the command line
+                    let Some(address_str) = parts.next() else {
+                        println!("Usage: read-mem <address>");
+                        continue;
+                    };
+
+                    // Parse the address
+                    let Ok(address) = Self::parse_hex(address_str) else {
+                        println!("Invalid address: {address_str}");
+                        continue;
+                    };
+
+                    Self::read_memory(cpu, address);
+                }
                 // No command, just continue
                 "" => {}
                 _ => println!("Unknown command: {}", cmd),
@@ -64,6 +84,13 @@ impl Debugger {
         }
 
         return false
+    }
+
+    /// Parses a string as a hexadecimal number, allowing for an optional "0x" prefix.
+    fn parse_hex(string: &str) -> Result<u32, std::num::ParseIntError> {
+        let string = string.strip_prefix("0x").unwrap_or(string);
+
+        u32::from_str_radix(string, 16)
     }
 
     /// Read a line from the user
@@ -92,6 +119,10 @@ impl Debugger {
         }
 
         println!("   pc -> {:08x}", cpu.pc);
+
+        if let Some(load_delay) = &cpu.load_delay {
+            println!("Pending load: {} -> {:08x}", REGISTERS[load_delay.target], load_delay.value);
+        }
     }
 
     /// Prints the contents of a memory location, as a little endian 32-bit
