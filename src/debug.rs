@@ -1,4 +1,4 @@
-use std::io::Write;
+use rustyline::{DefaultEditor, error::ReadlineError};
 
 use crate::cpu::{Cpu, Instruction};
 
@@ -9,6 +9,9 @@ pub struct Debugger {
 
     /// Flag to indicate a request to quit the emulator
     pub quit: bool,
+
+    /// Rustyline instance for command line input, with no special configuration.
+    editor: DefaultEditor,
 }
 
 /// Represents the different combinations of arguments for the opcodes
@@ -21,8 +24,10 @@ enum ArgumentTypes {
     T_Imm,     // rt, imm
     T_S_Imm,   // rt, rs, imm
     T_Mem,     // rt, offset(rs)
+    D,         // rd
     S,         // rs
     S_D,       // rs, rd
+    S_T,       // rs, rt
     S_T_Jump,  // rs, rt, target
     S_Jump,    // rs, target
     Jump,      // target
@@ -34,12 +39,18 @@ const REGISTERS: [&str; 32] = [
     "$k0", "$k1", "$gp", "$sp", "$fp", "$ra",
 ];
 
+const HISTORY_FILE: &str = ".dbg_history";
+
 impl Debugger {
     /// Create a new debugger instance
     pub fn new() -> Self {
+        let mut editor = DefaultEditor::new().unwrap();
+        let _ = editor.load_history(HISTORY_FILE);
+
         Debugger {
             stepping: false,
             quit: false,
+            editor,
         }
     }
 
@@ -47,7 +58,11 @@ impl Debugger {
     pub fn enter(&mut self, cpu: &mut Cpu) {
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, 4).unwrap();
-        println!("[{:08x}]    {}", cpu.pc, Self::disassemble(Instruction(ins)));
+        println!(
+            "[{:08x}]    {}",
+            cpu.pc,
+            Self::disassemble(Instruction(ins))
+        );
 
         loop {
             // Read a command from the user
@@ -61,7 +76,8 @@ impl Debugger {
                 // Quit the debugger
                 "q" | "quit" => {
                     println!("Quitting...");
-                    std::process::exit(0);
+                    self.quit = true;
+                    break;
                 }
                 // Step the CPU
                 "s" | "step" => {
@@ -104,17 +120,25 @@ impl Debugger {
 
     /// Read a line from the user
     pub fn read_line(&mut self) -> String {
-        let mut line = String::new();
+        match self.editor.readline("> ") {
+            Ok(line) => {
+                // Add the line to the history
+                let line = line.trim().to_string();
 
-        // Print the prompt
-        print!("> ");
-        std::io::stdout().flush().unwrap();
+                // Add the line to the history
+                let _ = self.editor.add_history_entry(&line);
 
-        // Read a line from stdin
-        std::io::stdin().read_line(&mut line).unwrap();
-
-        // Remove trailing spaces and newlines
-        line.trim().to_string()
+                line
+            }
+            Err(ReadlineError::Interrupted) => {
+                self.quit = true;
+                String::new()
+            }
+            Err(_) => {
+                println!("Error reading line");
+                String::new()
+            }
+        }
     }
 
     /// Prints the contents of the registers
@@ -127,10 +151,16 @@ impl Debugger {
             }
         }
 
-        println!("   pc -> {:08x}", cpu.pc);
+        println!(
+            "   pc -> {:08x}     hi -> {:08x}     lo -> {:08x}",
+            cpu.pc, cpu.hi, cpu.lo
+        );
 
         if let Some(load_delay) = &cpu.load_delay {
-            println!("Pending load: {} -> {:08x}", REGISTERS[load_delay.target], load_delay.value);
+            println!(
+                "Pending load: {} -> {:08x}",
+                REGISTERS[load_delay.target], load_delay.value
+            );
         }
     }
 
@@ -155,6 +185,14 @@ impl Debugger {
                 0x07 => Self::format_instruction(ins, "srav", ArgumentTypes::D_T_S),
                 0x08 => Self::format_instruction(ins, "jr", ArgumentTypes::S),
                 0x09 => Self::format_instruction(ins, "jalr", ArgumentTypes::S_D),
+                0x10 => Self::format_instruction(ins, "mfhi", ArgumentTypes::D),
+                0x11 => Self::format_instruction(ins, "mthi", ArgumentTypes::S),
+                0x12 => Self::format_instruction(ins, "mflo", ArgumentTypes::D),
+                0x13 => Self::format_instruction(ins, "mtlo", ArgumentTypes::S),
+                0x18 => Self::format_instruction(ins, "mult", ArgumentTypes::S_T),
+                0x19 => Self::format_instruction(ins, "multu", ArgumentTypes::S_T),
+                0x1a => Self::format_instruction(ins, "div", ArgumentTypes::S_T),
+                0x1b => Self::format_instruction(ins, "divu", ArgumentTypes::S_T),
                 0x20 => Self::format_instruction(ins, "add", ArgumentTypes::D_S_T),
                 0x21 => Self::format_instruction(ins, "addu", ArgumentTypes::D_S_T),
                 0x22 => Self::format_instruction(ins, "sub", ArgumentTypes::D_S_T),
@@ -250,7 +288,9 @@ impl Debugger {
                 REGISTERS[ins.rs()]
             ),
             ArgumentTypes::S => format!("{}", REGISTERS[ins.rs()]),
+            ArgumentTypes::D => format!("{}", REGISTERS[ins.rd()]),
             ArgumentTypes::S_D => format!("{}, {}", REGISTERS[ins.rs()], REGISTERS[ins.rd()]),
+            ArgumentTypes::S_T => format!("{}, {}", REGISTERS[ins.rs()], REGISTERS[ins.rt()]),
             ArgumentTypes::S_T_Jump => {
                 format!(
                     "{}, {}, {:#x}",
@@ -262,5 +302,13 @@ impl Debugger {
             ArgumentTypes::S_Jump => format!("{}, {:#x}", REGISTERS[ins.rs()], ins.simm16() << 2),
             ArgumentTypes::Jump => format!("{:#x}", ins.jump_target() << 2),
         }
+    }
+}
+
+impl Drop for Debugger {
+    fn drop(&mut self) {
+        println!("Saving history...");
+        // Save the history to a file
+        let _ = self.editor.save_history(HISTORY_FILE);
     }
 }
