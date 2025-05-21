@@ -5,22 +5,39 @@ mod emulator;
 mod ram;
 
 use bus::AccessSize;
+use clap::Parser;
 use emulator::Emulator;
 use std::io::Read;
 
+#[derive(Parser)]
+struct MainArguments {
+    /// Path to a PlayStation program
+    #[arg(value_name = "PATH")]
+    executable: Option<String>,
+
+    /// Turn debugging information on
+    #[arg(short, long)]
+    debug: bool,
+}
+
 fn main() {
-    // If there's a cmd line argument, treat it as a file path
-    // and load the program into RAM.
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
+    // Parse command line arguments
+    let args = MainArguments::parse();
+
+    // Require a file to run
+    if args.executable.is_none() {
         println!("No program file provided.");
         return;
     }
 
+    // Create a new emulator instance
     let mut emulator = Emulator::new();
-    emulator.debugger.stepping = true;
 
-    let rom = read_rom(&args[1]);
+    // Set the debugger to be active if the user requested it
+    emulator.debugger.stepping = args.debug;
+
+    // Load the executable into the emulator's RAM
+    let rom = read_rom(&args.executable.unwrap());
     load_rom(&mut emulator.cpu, rom, 0);
 
     // Run forever
