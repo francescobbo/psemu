@@ -7,14 +7,33 @@ pub enum MemoryError {
     BusError,
 }
 
+#[derive(Debug, PartialEq)]
+enum MipsSegment {
+    Kuseg,
+    Kseg0,
+    Kseg1,
+    Kseg2,
+}
+
 impl Cpu {
     /// Performs a memory read operation.
     pub fn read_memory(&self, address: u32, size: AccessSize) -> Result<u32, MemoryError> {
         Self::check_alignment(address, size)?;
 
-        self.bus
-            .read(address, size)
-            .map_err(|_| MemoryError::BusError)
+        let (segment, phys_addr) = self.extract_segment(address);
+
+        match segment {
+            MipsSegment::Kseg2 => {
+                // We'll work on this later.
+                match address {
+                    _ => unimplemented!("kseg2 access not implemented yet"),
+                }
+            }
+            _ => self
+                .bus
+                .read(phys_addr, size)
+                .map_err(|_| MemoryError::BusError),
+        }
     }
 
     /// Performs a memory write operation.
@@ -26,9 +45,20 @@ impl Cpu {
     ) -> Result<(), MemoryError> {
         Self::check_alignment(address, size)?;
 
-        self.bus
-            .write(address, value, size)
-            .map_err(|_| MemoryError::BusError)
+        let (segment, phys_addr) = self.extract_segment(address);
+
+        match segment {
+            MipsSegment::Kseg2 => {
+                // We'll work on this later.
+                match address {
+                    _ => unimplemented!("kseg2 access not implemented yet"),
+                }
+            }
+            _ => self
+                .bus
+                .write(phys_addr, value, size)
+                .map_err(|_| MemoryError::BusError),
+        }
     }
 
     /// Checks if the address is aligned for the given size.
@@ -51,5 +81,66 @@ impl Cpu {
                 }
             }
         }
+    }
+
+    /// Extracts the segment and offset from a given virtual address.
+    fn extract_segment(&self, address: u32) -> (MipsSegment, u32) {
+        if address & 0x8000_0000 == 0 {
+            (MipsSegment::Kuseg, address)
+        } else {
+            // Look at the top 3 bits of the address to determine the segment
+            match (address >> 28) & 0x0e {
+                // Kseg0: 0x8000_0000 - 0x9fff_ffff
+                0x8 => (MipsSegment::Kseg0, address & 0x1fff_ffff),
+                // Kseg1: 0xa000_0000 - 0xbfff_ffff
+                0xa => (MipsSegment::Kseg1, address & 0x1fff_ffff),
+                // Kseg2: 0xc000_0000 - 0xffff_ffff
+                0xc | 0xe => (MipsSegment::Kseg2, address),
+                _ => unreachable!(),
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cpu::Cpu;
+
+    #[test]
+    fn test_extract_segment() {
+        let cpu = Cpu::new();
+        assert_eq!(
+            cpu.extract_segment(0x0000_0000),
+            (MipsSegment::Kuseg, 0x0000_0000)
+        );
+        assert_eq!(
+            cpu.extract_segment(0x8000_0000),
+            (MipsSegment::Kseg0, 0x0000_0000)
+        );
+        assert_eq!(
+            cpu.extract_segment(0x9fff_ffff),
+            (MipsSegment::Kseg0, 0x1fff_ffff)
+        );
+        assert_eq!(
+            cpu.extract_segment(0xa000_0000),
+            (MipsSegment::Kseg1, 0x0000_0000)
+        );
+        assert_eq!(
+            cpu.extract_segment(0xbfff_ffff),
+            (MipsSegment::Kseg1, 0x1fff_ffff)
+        );
+        assert_eq!(
+            cpu.extract_segment(0xc000_0000),
+            (MipsSegment::Kseg2, 0xc000_0000)
+        );
+        assert_eq!(
+            cpu.extract_segment(0xe000_0000),
+            (MipsSegment::Kseg2, 0xe000_0000)
+        );
+        assert_eq!(
+            cpu.extract_segment(0xffff_ffff),
+            (MipsSegment::Kseg2, 0xffff_ffff)
+        );
     }
 }

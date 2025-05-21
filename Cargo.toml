@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 bitfield = "0.19"
+clap = { version = "4.0", features = ["derive"] }
 rustyline = "15.0.0"
