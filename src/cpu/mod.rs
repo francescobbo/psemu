@@ -3,9 +3,10 @@ mod branch;
 mod instruction;
 mod load_store;
 mod logic;
+mod memory;
 mod test_utils;
 
-use crate::bus::{AccessError, Bus};
+use crate::bus::Bus;
 pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
@@ -225,20 +226,5 @@ impl Cpu {
 
         // Reset the last written register for the next cycle
         self.last_written_register = 0;
-    }
-
-    /// Performs a memory read operation.
-    pub fn read_memory(&self, address: u32, size: usize) -> Result<u32, AccessError> {
-        self.bus.read(address, size)
-    }
-
-    /// Performs a memory write operation.
-    pub fn write_memory(
-        &mut self,
-        address: u32,
-        value: u32,
-        size: usize,
-    ) -> Result<(), AccessError> {
-        self.bus.write(address, value, size)
     }
 }
