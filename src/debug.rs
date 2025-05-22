@@ -22,18 +22,25 @@ enum ArgumentTypes {
     Jump,      // target
 }
 
+const REGISTERS: [&str; 32] = [
+    "$zero", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3",
+    "$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7",
+    "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", "$s6", "$s7",
+    "$t8", "$t9", "$k0", "$k1", "$gp", "$sp", "$fp", "$ra",
+];
+
 impl Debugger {
     /// Prints the contents of the registers
     pub fn print_registers(cpu: &Cpu) {
         for (i, &value) in cpu.registers.iter().enumerate() {
-            print!("r{i:<2}: {value:08x}  ");
+            print!("{:>5} -> {value:08x}  ", REGISTERS[i]);
 
             if i % 4 == 3 {
                 println!();
             }
         }
 
-        println!("pc: {:#08x}", cpu.pc);
+        println!("   pc -> {:08x}", cpu.pc);
     }
 
     /// Prints the contents of a memory location, as a little endian 32-bit
@@ -114,19 +121,54 @@ impl Debugger {
     /// Format the arguments types for display
     fn format_args(ins: Instruction, arg_types: ArgumentTypes) -> String {
         match arg_types {
-            ArgumentTypes::D_S_T => format!("r{}, r{}, r{}", ins.rd(), ins.rs(), ins.rt(),),
-            ArgumentTypes::D_T_S => format!("r{}, r{}, r{}", ins.rd(), ins.rt(), ins.rs()),
-            ArgumentTypes::D_T_Shift => format!("r{}, r{}, {}", ins.rd(), ins.rt(), ins.shamt()),
-            ArgumentTypes::T_S_SImm => format!("r{}, r{}, {:#x}", ins.rt(), ins.rs(), ins.simm16()),
-            ArgumentTypes::T_Imm => format!("r{}, {:#x}", ins.rt(), ins.imm16()),
-            ArgumentTypes::T_S_Imm => format!("r{}, r{}, {:#x}", ins.rt(), ins.rs(), ins.imm16()),
-            ArgumentTypes::T_Mem => format!("r{}, {}(r{})", ins.rt(), ins.simm16(), ins.rs()),
-            ArgumentTypes::S => format!("r{}", ins.rs()),
-            ArgumentTypes::S_D => format!("r{}, r{}", ins.rs(), ins.rd()),
+            ArgumentTypes::D_S_T => format!(
+                "{}, {}, {}",
+                REGISTERS[ins.rd()],
+                REGISTERS[ins.rs()],
+                REGISTERS[ins.rt()]
+            ),
+            ArgumentTypes::D_T_S => format!(
+                "{}, {}, {}",
+                REGISTERS[ins.rd()],
+                REGISTERS[ins.rt()],
+                REGISTERS[ins.rs()]
+            ),
+            ArgumentTypes::D_T_Shift => format!(
+                "{}, {}, {}",
+                REGISTERS[ins.rd()],
+                REGISTERS[ins.rt()],
+                ins.shamt()
+            ),
+            ArgumentTypes::T_S_SImm => format!(
+                "{}, {}, {:#x}",
+                REGISTERS[ins.rt()],
+                REGISTERS[ins.rs()],
+                ins.simm16()
+            ),
+            ArgumentTypes::T_Imm => format!("{}, {:#x}", REGISTERS[ins.rt()], ins.imm16()),
+            ArgumentTypes::T_S_Imm => format!(
+                "{}, {}, {:#x}",
+                REGISTERS[ins.rt()],
+                REGISTERS[ins.rs()],
+                ins.imm16()
+            ),
+            ArgumentTypes::T_Mem => format!(
+                "{}, {}({})",
+                REGISTERS[ins.rt()],
+                ins.simm16(),
+                REGISTERS[ins.rs()]
+            ),
+            ArgumentTypes::S => format!("{}", REGISTERS[ins.rs()]),
+            ArgumentTypes::S_D => format!("{}, {}", REGISTERS[ins.rs()], REGISTERS[ins.rd()]),
             ArgumentTypes::S_T_Jump => {
-                format!("r{}, r{}, {:#x}", ins.rs(), ins.rt(), ins.simm16() << 2)
+                format!(
+                    "{}, {}, {:#x}",
+                    REGISTERS[ins.rs()],
+                    REGISTERS[ins.rt()],
+                    ins.simm16() << 2
+                )
             }
-            ArgumentTypes::S_Jump => format!("r{}, {:#x}", ins.rs(), ins.simm16() << 2),
+            ArgumentTypes::S_Jump => format!("{}, {:#x}", REGISTERS[ins.rs()], ins.simm16() << 2),
             ArgumentTypes::Jump => format!("{:#x}", ins.jump_target() << 2),
         }
     }
