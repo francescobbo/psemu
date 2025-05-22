@@ -10,10 +10,7 @@ impl Cpu {
         let rs = self.get_rs(instruction) as i32;
         let rt = self.get_rt(instruction) as i32;
 
-        self.write_reg(
-            instruction.rd(),
-            (rs + rt) as u32,
-        );
+        self.write_reg(instruction.rd(), (rs + rt) as u32);
     }
 
     /// 00.21 - ADDU - R-Type
@@ -38,10 +35,7 @@ impl Cpu {
         let rs = self.get_rs(instruction) as i32;
         let rt = self.get_rt(instruction) as i32;
 
-        self.write_reg(
-            instruction.rd(),
-            (rs - rt) as u32,
-        );
+        self.write_reg(instruction.rd(), (rs - rt) as u32);
     }
 
     /// 00.23 - SUBU - R-Type
@@ -65,10 +59,10 @@ impl Cpu {
     pub(super) fn ins_addi(&mut self, instr: Instruction) {
         let value = self.get_rs(instr) as i32;
         let immediate = instr.simm16();
-        
+
         match value.checked_add(immediate) {
             Some(result) => self.write_reg(instr.rt(), result as u32),
-            None => self.exception("Overflow")
+            None => self.exception("Overflow"),
         }
     }
 
@@ -99,18 +93,14 @@ mod tests {
     #[test]
     fn test_add() {
         let mut cpu = test_cpu(
-            &[
-                (1, 1234),
-                (2, 0xffffffff),
-                (3, 15),
-                (7, 1)],
+            &[(1, 1234), (2, 0xffffffff), (3, 15), (7, 1)],
             &[
                 // ADD r8, r7, r0
                 r_type(0x20, 8, 0, 7),
                 // ADD r9, r7, r1
                 r_type(0x20, 9, 1, 7),
                 // ADD r10, r7, r2
-                r_type(0x20, 10,2, 7),
+                r_type(0x20, 10, 2, 7),
                 // ADD r0, r7, r3
                 r_type(0x20, 0, 3, 7),
             ],
@@ -143,18 +133,14 @@ mod tests {
     #[test]
     fn test_addu() {
         let mut cpu = test_cpu(
-            &[
-                (1, 1234),
-                (2, 0xffffffff),
-                (3, 15),
-                (7, 1)],
+            &[(1, 1234), (2, 0xffffffff), (3, 15), (7, 1)],
             &[
                 // ADDU r8, r7, r0
                 r_type(0x21, 8, 0, 7),
                 // ADDU r9, r7, r1
                 r_type(0x21, 9, 1, 7),
                 // ADDU r10, r7, r2
-                r_type(0x21, 10,2, 7),
+                r_type(0x21, 10, 2, 7),
                 // ADDU r0, r7, r3
                 r_type(0x21, 0, 3, 7),
                 // ADDU r11, r2, r2
@@ -173,11 +159,7 @@ mod tests {
     #[test]
     fn test_sub() {
         let mut cpu = test_cpu(
-            &[
-                (1, 1234),
-                (2, 0xffffffff),
-                (3, 15),
-                (7, 1)],
+            &[(1, 1234), (2, 0xffffffff), (3, 15), (7, 1)],
             &[
                 // SUB r8, r7, r0
                 r_type(0x22, 8, 0, 7),

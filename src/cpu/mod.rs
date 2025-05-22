@@ -5,7 +5,10 @@ mod logic;
 #[cfg(test)]
 mod test_utils;
 
-use crate::ram::{AccessSize, Ram};
+use crate::{
+    debug::Debugger,
+    ram::{AccessSize, Ram},
+};
 pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
@@ -70,7 +73,11 @@ impl Cpu {
                     0x2a => self.ins_slt(instruction),
                     0x2b => self.ins_sltu(instruction),
                     _ => {
-                        println!("Unimplemented funct: {:02x} @ {:08x}", instruction.funct(), self.pc - 4);
+                        println!(
+                            "Unimplemented funct: {:02x} @ {:08x}",
+                            instruction.funct(),
+                            self.pc - 4
+                        );
                         self.exception("Unimplemented funct");
                     }
                 }
@@ -92,7 +99,11 @@ impl Cpu {
             0x29 => self.ins_sh(instruction),
             0x2b => self.ins_sw(instruction),
             _ => {
-                println!("Unimplemented opcode: {:02x} @ {:08x}", instruction.funct(), self.pc - 4);
+                println!(
+                    "Unimplemented opcode: {:02x} @ {:08x}",
+                    instruction.funct(),
+                    self.pc - 4
+                );
                 self.exception("Unimplemented funct");
             }
         }

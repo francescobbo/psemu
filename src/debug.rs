@@ -1,10 +1,6 @@
-use crate::{
-    cpu::Cpu,
-    ram::AccessSize,
-};
+use crate::{cpu::Cpu, ram::AccessSize};
 
-pub struct Debugger {
-}
+pub struct Debugger {}
 
 impl Debugger {
     /// Prints the contents of the registers

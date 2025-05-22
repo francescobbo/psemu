@@ -360,13 +360,11 @@ mod tests {
     #[test]
     fn test_and() {
         let mut cpu = test_cpu(
+            &[(1, 0xffff_0000), (2, 0x00ff_ff00)],
             &[
-                (1, 0xffff_0000),
-                (2, 0x00ff_ff00),
-            ], &[
                 // AND r3, r1, r2
                 r_type(0x24, 3, 1, 2),
-            ]
+            ],
         );
 
         cpu.step();
@@ -376,13 +374,11 @@ mod tests {
     #[test]
     fn test_or() {
         let mut cpu = test_cpu(
+            &[(1, 0xf0f0_0000), (2, 0x0f0f_0f0f)],
             &[
-                (1, 0xf0f0_0000),
-                (2, 0x0f0f_0f0f),
-            ], &[
                 // OR r3, r1, r2
                 r_type(0x25, 3, 1, 2),
-            ]
+            ],
         );
 
         cpu.step();
@@ -392,13 +388,11 @@ mod tests {
     #[test]
     fn test_xor() {
         let mut cpu = test_cpu(
+            &[(1, 0xffff_0000), (2, 0x00ff_ff00)],
             &[
-                (1, 0xffff_0000),
-                (2, 0x00ff_ff00),
-            ], &[
                 // XOR r3, r1, r2
                 r_type(0x26, 3, 1, 2),
-            ]
+            ],
         );
 
         cpu.step();
@@ -408,15 +402,13 @@ mod tests {
     #[test]
     fn test_nor() {
         let mut cpu = test_cpu(
+            &[(1, 0xf000_0000), (2, 0x0000_000f)],
             &[
-                (1, 0xf000_0000),
-                (2, 0x0000_000f),
-            ], &[
                 // NOR r3, r1, r2
                 r_type(0x27, 3, 1, 2),
                 // NOR r4, r0, r0
                 r_type(0x27, 4, 0, 0),
-            ]
+            ],
         );
 
         cpu_steps(&mut cpu, 2);
@@ -427,26 +419,23 @@ mod tests {
 
     #[test]
     fn test_slt() {
-        let mut cpu = test_cpu(&[
-            (1, 10),
-            (2, 20),
-            (3, 0xffff_fffb),
-            (4, 5),
-            (5, 0xffff_fff0)
-        ], &[
-            // SLT r10, r1, r2
-            r_type(0x2a, 10, 2, 1),
-            // SLT r11, r2, r1
-            r_type(0x2a, 11, 1, 2),
-            // SLT r12, r1, r1
-            r_type(0x2a, 12, 1, 1),
-            // SLT r13, r3, r4
-            r_type(0x2a, 13, 4, 3),
-            // SLT r14, r4, r3
-            r_type(0x2a, 14, 3, 4),
-            // SLT r15, r5, r3
-            r_type(0x2a, 15, 3, 5),
-        ]);
+        let mut cpu = test_cpu(
+            &[(1, 10), (2, 20), (3, 0xffff_fffb), (4, 5), (5, 0xffff_fff0)],
+            &[
+                // SLT r10, r1, r2
+                r_type(0x2a, 10, 2, 1),
+                // SLT r11, r2, r1
+                r_type(0x2a, 11, 1, 2),
+                // SLT r12, r1, r1
+                r_type(0x2a, 12, 1, 1),
+                // SLT r13, r3, r4
+                r_type(0x2a, 13, 4, 3),
+                // SLT r14, r4, r3
+                r_type(0x2a, 14, 3, 4),
+                // SLT r15, r5, r3
+                r_type(0x2a, 15, 3, 5),
+            ],
+        );
 
         cpu_steps(&mut cpu, 6);
 
@@ -460,28 +449,25 @@ mod tests {
 
     #[test]
     fn test_sltu() {
-        let mut cpu = test_cpu(&[
-            (1, 10),
-            (2, 20),
-            (3, 0xffff_fffb),
-            (4, 5),
-            (5, 0xffffffff)
-        ], &[
-            // SLTU r10, r1, r2
-            r_type(0x2b, 10, 2, 1),
-            // SLTU r11, r2, r1
-            r_type(0x2b, 11, 1, 2),
-            // SLTU r12, r1, r1
-            r_type(0x2b, 12, 1, 1),
-            // SLTU r13, r3, r4
-            r_type(0x2b, 13, 4, 3),
-            // SLTU r14, r4, r3
-            r_type(0x2b, 14, 3, 4),
-            // SLTU r15, r5, r3
-            r_type(0x2b, 15, 3, 5),
-            // SLTU r16, r5, r0
-            r_type(0x2b, 16, 0, 5),
-        ]);
+        let mut cpu = test_cpu(
+            &[(1, 10), (2, 20), (3, 0xffff_fffb), (4, 5), (5, 0xffffffff)],
+            &[
+                // SLTU r10, r1, r2
+                r_type(0x2b, 10, 2, 1),
+                // SLTU r11, r2, r1
+                r_type(0x2b, 11, 1, 2),
+                // SLTU r12, r1, r1
+                r_type(0x2b, 12, 1, 1),
+                // SLTU r13, r3, r4
+                r_type(0x2b, 13, 4, 3),
+                // SLTU r14, r4, r3
+                r_type(0x2b, 14, 3, 4),
+                // SLTU r15, r5, r3
+                r_type(0x2b, 15, 3, 5),
+                // SLTU r16, r5, r0
+                r_type(0x2b, 16, 0, 5),
+            ],
+        );
 
         cpu_steps(&mut cpu, 7);
 
