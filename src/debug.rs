@@ -44,13 +44,13 @@ impl Debugger {
         println!(
             "[{:08x}]    {}",
             cpu.pc,
-            self.disasm.disasm(ins, cpu.pc)
+            self.disasm.disasm(ins, cpu.pc.wrapping_add(4))
         );
 
         loop {
-            // Read a command from the user
+            // Read a command from the user. Return true if this is None
+            // (e.g. the user pressed Ctrl-C)
             let Some(line) = self.read_line() else {
-                // If we couldn't read a line, just continue
                 return true;
             };
 
@@ -164,7 +164,6 @@ impl Debugger {
 
 impl Drop for Debugger {
     fn drop(&mut self) {
-        println!("Saving history...");
         // Save the history to a file
         let _ = self.editor.save_history(HISTORY_FILE);
     }
