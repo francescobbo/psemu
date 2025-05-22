@@ -5,7 +5,7 @@ mod logic;
 #[cfg(test)]
 mod test_utils;
 
-use crate::ram::{AccessSize, Ram};
+use crate::{debug::Debugger, ram::{AccessSize, Ram}};
 pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
