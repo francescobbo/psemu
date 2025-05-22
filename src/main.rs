@@ -1,13 +1,12 @@
 mod cpu;
 mod debug;
+mod emulator;
 mod ram;
 
-use debug::Debugger;
+use emulator::Emulator;
 use std::io::Read;
 
 fn main() {
-    let mut cpu = cpu::Cpu::new();
-
     // If there's a cmd line argument, treat it as a file path
     // and load the program into RAM.
     let args: Vec<String> = std::env::args().collect();
@@ -16,17 +15,14 @@ fn main() {
         return;
     }
 
+    let mut emulator = Emulator::new();
+    emulator.debugger.stepping = true;
+
     let rom = read_rom(&args[1]);
-    load_rom(&mut cpu.ram, rom, 0);
-    cpu.pc = 0;
+    load_rom(&mut emulator.cpu.ram, rom, 0);
 
-    // Execute a bunch of instructions
-    for _ in 0..100 {
-        cpu.step();
-    }
-
-    // Print the contents of the registers
-    Debugger::print_registers(&cpu);
+    // Run forever
+    emulator.run();
 }
 
 fn read_rom(path: &str) -> Vec<u8> {

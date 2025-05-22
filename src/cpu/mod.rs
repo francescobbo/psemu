@@ -5,7 +5,7 @@ mod load_store;
 mod logic;
 mod test_utils;
 
-use crate::{debug::Debugger, ram::Ram};
+use crate::ram::Ram;
 pub use instruction::Instruction;
 
 const NUM_REGISTERS: usize = 32;
