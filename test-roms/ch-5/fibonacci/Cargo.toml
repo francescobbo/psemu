@@ -1,0 +1,7 @@
+[package]
+name = "fibonacci"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+psx = { git = "https://github.com/francescobbo/psx-sdk-rs", features = ["min_panic"] }

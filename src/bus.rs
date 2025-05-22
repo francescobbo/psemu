@@ -47,6 +47,7 @@ impl Bus {
 
         match address {
             RAM_BASE..=RAM_END => self.ram.write(address, value, size),
+            0x1f80_4000 => print!("{}", value as u8 as char),
             _ => {
                 println!("[Bus] Write error: address {address:#x} out of range");
                 return Err(AccessError::BusError);

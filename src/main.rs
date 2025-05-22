@@ -2,11 +2,12 @@ mod bus;
 mod cpu;
 mod debug;
 mod emulator;
+mod executable;
 mod ram;
 
 use clap::Parser;
 use emulator::Emulator;
-use std::io::Read;
+use executable::Executable;
 
 #[derive(Parser)]
 struct MainArguments {
@@ -29,29 +30,18 @@ fn main() {
         return;
     }
 
+    // Load the executable from the provided path
+    let exe = Executable::load(&args.executable.unwrap()).expect("Failed to load executable");
+
     // Create a new emulator instance
     let mut emulator = Emulator::new();
 
     // Set the debugger to be active if the user requested it
     emulator.debugger.stepping = args.debug;
 
-    // Load the executable into the emulator's RAM
-    let rom = read_rom(&args.executable.unwrap());
-    load_rom(&mut emulator.cpu.bus.ram, rom, 0);
+    // Load the executable into the CPU
+    exe.load_into(&mut emulator.cpu);
 
     // Run forever
     emulator.run();
-}
-
-fn read_rom(path: &str) -> Vec<u8> {
-    let mut file = std::fs::File::open(path).expect("Failed to open file");
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).expect("Failed to read file");
-    buffer
-}
-
-fn load_rom(ram: &mut ram::Ram, rom: Vec<u8>, start_address: u32) {
-    for (i, byte) in rom.iter().enumerate() {
-        ram.write(start_address + i as u32, *byte as u32, 1);
-    }
 }
