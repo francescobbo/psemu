@@ -21,16 +21,16 @@ fn main() {
     load_rom(&mut cpu, rom, 0x1000);
     cpu.pc = 0x1000;
 
-    // Execute 100 instructions
-    for _ in 0..100 {
+    // Execute 50 instructions
+    for _ in 0..50 {
         cpu.step();
     }
 
     // Print the contents of the registers
     Debugger::print_registers(&cpu);
 
-    // Print the contents of the RAM 0x100 to 0x116
-    for address in (0x100..=0x116).step_by(4) {
+    // Print the contents of the RAM 0x100 to 0x114
+    for address in (0x100..=0x114).step_by(4) {
         Debugger::read_memory(&cpu, address);
     }
 }
