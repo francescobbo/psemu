@@ -77,7 +77,7 @@ impl Debugger {
                     return true;
                 }
                 // Step the CPU
-                "s" | "step" => {
+                "s" | "step" | "" => {
                     break;
                 }
                 // Stop stepping
@@ -105,8 +105,6 @@ impl Debugger {
 
                     Self::read_memory(cpu, address);
                 }
-                // No command, just continue
-                "" => {}
                 _ => println!("Unknown command: {}", cmd),
             }
         }
@@ -234,12 +232,16 @@ impl Debugger {
             0x0f => Self::format_instruction(ins, "lui", ArgumentTypes::T_Imm),
             0x20 => Self::format_instruction(ins, "lb", ArgumentTypes::T_Mem),
             0x21 => Self::format_instruction(ins, "lh", ArgumentTypes::T_Mem),
+            0x22 => Self::format_instruction(ins, "lwl", ArgumentTypes::T_Mem),
             0x23 => Self::format_instruction(ins, "lw", ArgumentTypes::T_Mem),
             0x24 => Self::format_instruction(ins, "lbu", ArgumentTypes::T_Mem),
             0x25 => Self::format_instruction(ins, "lhu", ArgumentTypes::T_Mem),
+            0x26 => Self::format_instruction(ins, "lwr", ArgumentTypes::T_Mem),
             0x28 => Self::format_instruction(ins, "sb", ArgumentTypes::T_Mem),
             0x29 => Self::format_instruction(ins, "sh", ArgumentTypes::T_Mem),
+            0x2a => Self::format_instruction(ins, "swl", ArgumentTypes::T_Mem),
             0x2b => Self::format_instruction(ins, "sw", ArgumentTypes::T_Mem),
+            0x2e => Self::format_instruction(ins, "swr", ArgumentTypes::T_Mem),
             _ => format!("Unknown opcode: {:#x}", ins.opcode()),
         }
     }
