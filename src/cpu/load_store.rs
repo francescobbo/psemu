@@ -43,6 +43,37 @@ impl Cpu {
         }
     }
 
+    /// 22 - LWL - I-type
+    /// LWL rt, offset(rs)
+    /// Loads the left (most significant) bytes of a word from an unaligned
+    /// memory address.
+    pub(super) fn ins_lwl(&mut self, instr: Instruction) {
+        let addr = self.target_address(instr);
+
+        // Perform an aligned load of 4 bytes
+        let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
+            Ok(value) => value,
+            Err(_) => {
+                self.exception("Memory read error");
+                return;
+            }
+        };
+
+        // Get the current value of the register (even if it's delayed)
+        let reg = self.get_possibly_delayed_reg(instr.rt());
+
+        // Depending on the address offset, we need to shift the loaded word
+        let value = match addr & 3 {
+            0 => (reg & 0x00ffffff) | (aligned_word << 24),
+            1 => (reg & 0x0000ffff) | (aligned_word << 16),
+            2 => (reg & 0x000000ff) | (aligned_word << 8),
+            3 => aligned_word,
+            _ => unreachable!(),
+        };
+
+        self.delayed_load(instr.rt(), value);
+    }
+
     /// 23 - LW - I-type
     /// LW rt, offset(rs)
     /// GPR[rt] = Memory[rs + offset, 32-bit]
@@ -79,6 +110,35 @@ impl Cpu {
         }
     }
 
+    /// 26 - LWR - I-type
+    /// LWR rt, offset(rs)
+    /// Loads the right (least significant) bytes of a word from an unaligned
+    /// memory address.
+    pub(super) fn ins_lwr(&mut self, instr: Instruction) {
+        let addr = self.target_address(instr);
+
+        // Perform an aligned load of 4 bytes
+        let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
+            Ok(value) => value,
+            Err(_) => {
+                self.exception("Memory read error");
+                return;
+            }
+        };
+
+        let reg = self.get_possibly_delayed_reg(instr.rt());
+
+        let value = match addr & 3 {
+            0 => aligned_word,
+            1 => (reg & 0xff000000) | (aligned_word >> 8),
+            2 => (reg & 0xffff0000) | (aligned_word >> 16),
+            3 => (reg & 0xffffff00) | (aligned_word >> 24),
+            _ => unreachable!(),
+        };
+
+        self.delayed_load(instr.rt(), value);
+    }
+
     /// 28 - SB - I-type
     /// SB rt, offset(rs)
     /// Memory[rs + sign_extended(offset), 8-bit] = GPR[rt]
@@ -106,6 +166,36 @@ impl Cpu {
         }
     }
 
+    /// 2A - SWL - I-type
+    /// SWL rt, offset(rs)
+    /// Stores the left (most significant) bytes of a word to an unaligned
+    /// memory address.
+    pub(super) fn ins_swl(&mut self, instr: Instruction) {
+        let addr = self.target_address(instr);
+
+        // Perform an aligned read of 4 bytes Note that the real SWL does not
+        // read the memory, the merging is performed by the RAM chip. We shall
+        // not raise an exception if the read fails.
+        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap_or_default();
+
+        // Get the current value of the register
+        let reg = self.get_rt(instr);
+
+        // Depending on the address offset, we need to shift the loaded word
+        let value = match addr & 3 {
+            0 => (aligned_word & 0xffffff00) | (reg >> 24),
+            1 => (aligned_word & 0xffff0000) | (reg >> 16),
+            2 => (aligned_word & 0xff000000) | (reg >> 8),
+            3 => aligned_word,
+            _ => unreachable!(),
+        };
+
+        // Write the modified value back to memory, aligned to a word boundary
+        if self.write_memory(addr & !3, value, AccessSize::Word).is_err() {
+            self.exception("Memory write error");
+        }
+    }
+
     /// 2B - SW - I-type
     /// SW rt, offset(rs)
     /// Memory[rs + sign_extended(offset), 32-bit] = GPR[rt]
@@ -116,6 +206,44 @@ impl Cpu {
         if self.write_memory(address, value, AccessSize::Word).is_err() {
             self.exception("Memory write error")
         }
+    }
+
+    /// 2E - SWR - I-type
+    /// SWR rt, offset(rs)
+    /// Stores the right (least significant) bytes of a word to an unaligned
+    /// memory address.
+    pub(super) fn ins_swr(&mut self, instr: Instruction) {
+        let addr = self.target_address(instr);
+
+        // Perform an aligned read of 4 bytes
+        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap_or_default();
+
+        // Get the current value of the register
+        let reg = self.get_rt(instr);
+
+        // Depending on the address offset, we need to shift the loaded word
+        let value = match addr & 3 {
+            0 => reg,
+            1 => (aligned_word & 0x000000ff) | (reg << 8),
+            2 => (aligned_word & 0x0000ffff) | (reg << 16),
+            3 => (aligned_word & 0x00ffffff) | (reg << 24),
+            _ => unreachable!(),
+        };
+
+        // Write the modified value back to memory, aligned to a word boundary
+        if self.write_memory(addr & !3, value, AccessSize::Word).is_err() {
+            self.exception("Memory write error");
+        }
+    }
+
+    fn get_possibly_delayed_reg(&self, index: usize) -> u32 {
+        if let Some(DelayedLoad { target, value }) = self.current_load_delay {
+            if target == index {
+                return value;
+            }
+        }
+
+        self.registers[index]
     }
 }
 

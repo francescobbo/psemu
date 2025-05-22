@@ -182,12 +182,16 @@ impl Cpu {
             0x0f => self.ins_lui(instruction),
             0x20 => self.ins_lb(instruction),
             0x21 => self.ins_lh(instruction),
+            0x22 => self.ins_lwl(instruction),
             0x23 => self.ins_lw(instruction),
             0x24 => self.ins_lbu(instruction),
             0x25 => self.ins_lhu(instruction),
+            0x26 => self.ins_lwr(instruction),
             0x28 => self.ins_sb(instruction),
             0x29 => self.ins_sh(instruction),
+            0x2a => self.ins_swl(instruction),
             0x2b => self.ins_sw(instruction),
+            0x2e => self.ins_swr(instruction),
             _ => {
                 println!(
                     "Unimplemented opcode: {:02x} @ {:08x}",

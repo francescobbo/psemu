@@ -65,7 +65,7 @@ impl Debugger {
                     return true;
                 }
                 // Step the CPU
-                "s" | "step" => {
+                "s" | "step" | "" => {
                     break;
                 }
                 // Stop stepping
@@ -93,8 +93,6 @@ impl Debugger {
 
                     Self::read_memory(cpu, address);
                 }
-                // No command, just continue
-                "" => {}
                 _ => println!("Unknown command: {}", cmd),
             }
         }
