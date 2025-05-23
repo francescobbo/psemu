@@ -66,7 +66,7 @@ impl Cpu {
             registers: [0; NUM_REGISTERS],
             hi: 0,
             lo: 0,
-            pc: 0,
+            pc: 0xbfc0_0000,
             bus: Bus::new(),
             branch_target: None,
             current_branch_target: None,
