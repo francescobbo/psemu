@@ -62,7 +62,7 @@ impl Cpu {
             registers: [0; NUM_REGISTERS],
             hi: 0,
             lo: 0,
-            pc: 0,
+            pc: 0xbfc0_0000,
             next_pc: None,
             load_delay: None,
             current_load_delay: None,

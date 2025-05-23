@@ -1,4 +1,4 @@
-use crate::ram::Ram;
+use crate::{ram::Ram, rom::{self, Rom}};
 
 #[derive(Debug)]
 /// Represents the bus that connects the CPU to the rest of the system.
@@ -6,6 +6,7 @@ use crate::ram::Ram;
 /// devices.
 pub struct Bus {
     pub ram: Ram,
+    pub rom: Rom,
 }
 
 #[derive(Debug)]
@@ -23,9 +24,12 @@ const RAM_SIZE: u32 = 2 * 1024 * 1024;
 const RAM_END: u32 = RAM_BASE + RAM_SIZE - 1;
 
 impl Bus {
-    /// Creates a new bus with a 2MB RAM.
+    /// Creates a new system bus.
     pub fn new() -> Self {
-        Self { ram: Ram::new() }
+        Self {
+            ram: Ram::new(),
+            rom: Rom::new(),
+        }
     }
 
     /// Performs a read operation on the bus.
@@ -34,6 +38,7 @@ impl Bus {
 
         match address {
             RAM_BASE..=RAM_END => Ok(self.ram.read(address, size)),
+            rom::ROM_BASE..=rom::ROM_END => Ok(self.rom.read(address, size)),
             _ => {
                 println!("[Bus] Read error: address {address:#x} out of range");
                 Err(AccessError::BusError)
@@ -48,6 +53,7 @@ impl Bus {
         match address {
             RAM_BASE..=RAM_END => self.ram.write(address, value, size),
             0x1f80_4000 => print!("{}", value as u8 as char),
+            rom::ROM_BASE..=rom::ROM_END => self.rom.write(address, value, size),
             _ => {
                 println!("[Bus] Write error: address {address:#x} out of range");
                 return Err(AccessError::BusError);
