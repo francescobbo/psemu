@@ -1,4 +1,5 @@
 /target
 *.o
 *.bin
+*.BIN
 .dbg_history
