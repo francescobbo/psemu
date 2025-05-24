@@ -22,7 +22,11 @@ impl Rom {
     /// Loads the ROM data from a vector of bytes.
     pub fn load(&mut self, data: Vec<u8>) {
         if data.len() != ROM_SIZE {
-            panic!("[Rom] Invalid ROM size: expected {} bytes, got {} bytes", ROM_SIZE, data.len());
+            panic!(
+                "[Rom] Invalid ROM size: expected {} bytes, got {} bytes",
+                ROM_SIZE,
+                data.len()
+            );
         }
 
         self.data = data;
