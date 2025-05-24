@@ -49,6 +49,9 @@ pub struct Cpu {
     /// The index of the register written to in the current cycle, if any.
     /// This is used to ignore the load delay writeback
     pub last_written_register: usize,
+
+    /// The BIU/Cache Control Register
+    pub biu_cache_control: u32,
 }
 
 /// Represents a delayed load operation.
@@ -73,6 +76,7 @@ impl Cpu {
             load_delay: None,
             current_load_delay: None,
             last_written_register: 0,
+            biu_cache_control: 0,
         }
     }
 
