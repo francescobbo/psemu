@@ -40,7 +40,7 @@ const MEMORY_CONTROL_END: u32 = MEMORY_CONTROL_BASE + MEMORY_CONTROL_SIZE - 1;
 
 const RAM_SIZE_BASE: u32 = 0x1f80_1060;
 const RAM_SIZE_SIZE: u32 = 4; // 4 bytes for the RAM size register
-const ROM_SIZE_END: u32 = RAM_SIZE_BASE + RAM_SIZE_SIZE - 1;
+const RAM_SIZE_END: u32 = RAM_SIZE_BASE + RAM_SIZE_SIZE - 1;
 
 impl Bus {
     /// Creates a new system bus.
@@ -67,7 +67,7 @@ impl Bus {
                 let index = (address - MEMORY_CONTROL_BASE) as usize / 4;
                 Ok(self.memory_control[index])
             }
-            RAM_SIZE_BASE..=ROM_SIZE_END => {
+            RAM_SIZE_BASE..=RAM_SIZE_END => {
                 assert!(
                     size == AccessSize::Word,
                     "[Bus] Unimplemented read size ({size:?}) for RAM size register"
@@ -96,7 +96,7 @@ impl Bus {
                 let index = (address - MEMORY_CONTROL_BASE) as usize / 4;
                 self.memory_control[index] = value;
             }
-            RAM_SIZE_BASE..=ROM_SIZE_END => {
+            RAM_SIZE_BASE..=RAM_SIZE_END => {
                 assert!(
                     size == AccessSize::Word,
                     "[Bus] Unimplemented write size ({size:?}) for RAM size register"

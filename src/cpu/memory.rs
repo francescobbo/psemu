@@ -24,9 +24,29 @@ impl Cpu {
 
         match segment {
             MipsSegment::Kseg2 => {
-                // We'll work on this later.
+                // Most of kseg2 is unmapped
                 match address {
-                    _ => unimplemented!("kseg2 access not implemented yet"),
+                    0xfffe_0000..=0xfffe_001f
+                    | 0xfffe_0100..=0xfffe_012f
+                    | 0xfffe_0134..=0xfffe_013f => {
+                        // These addresses are reserved for CPU control
+                        // registers, but their exact behavior is unknown.
+                        // Return all bits set to 1.
+                        println!(
+                            "[Cpu] Unimplemented read from reserved address {address:#x} in Kseg2"
+                        );
+                        Ok(0xffffffff)
+                    }
+                    0xfffe_0130..=0xfffe_0133 => {
+                        assert!(
+                            size == 4 && address & 0x3 == 0,
+                            "[Cpu] Unimplemented write size ({size}b) for BIU/Cache Control Register"
+                        );
+
+                        // This is the BIU/Cache Control Register
+                        Ok(self.biu_cache_control)
+                    }
+                    _ => Err(AccessError::BusError),
                 }
             }
             _ => self
@@ -49,9 +69,30 @@ impl Cpu {
 
         match segment {
             MipsSegment::Kseg2 => {
-                // We'll work on this later.
+                // Most of kseg2 is unmapped
                 match address {
-                    _ => unimplemented!("kseg2 access not implemented yet"),
+                    0xfffe_0000..=0xfffe_001f
+                    | 0xfffe_0100..=0xfffe_012f
+                    | 0xfffe_0134..=0xfffe_013f => {
+                        // These addresses are reserved for CPU control
+                        // registers, but their exact behavior is unknown.
+                        // Ignore writes to them.
+                        println!(
+                            "[Cpu] Unimplemented write to reserved address {address:#x} in Kseg2"
+                        );
+                        Ok(())
+                    }
+                    0xfffe_0130..=0xfffe_0133 => {
+                        assert!(
+                            size == 4 && address & 0x3 == 0,
+                            "[Cpu] Unimplemented write size ({size}b) for BIU/Cache Control Register"
+                        );
+
+                        // This is the BIU/Cache Control Register
+                        self.biu_cache_control = value;
+                        Ok(())
+                    }
+                    _ => Err(AccessError::BusError),
                 }
             }
             _ => self
