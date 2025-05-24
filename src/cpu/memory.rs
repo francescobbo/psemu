@@ -24,9 +24,22 @@ impl Cpu {
 
         match segment {
             MipsSegment::Kseg2 => {
-                // We'll work on this later.
+                // Most of kseg2 is unmapped
                 match address {
-                    _ => unimplemented!("kseg2 access not implemented yet"),
+                    0xfffe_0130 => {
+                        // This is the BIU/Cache Control Register
+                        Ok(self.biu_cache_control)
+                    }
+                    0xfffe_0000..=0xfffe_013f => {
+                        // These addresses are reserved for CPU control
+                        // registers, but their exact behavior is unknown.
+                        // Return all bits set to 1.
+                        println!(
+                            "[Cpu] Unimplemented read from reserved address {address:#x} in Kseg2"
+                        );
+                        Ok(0xffffffff)
+                    }
+                    _ => Err(MemoryError::BusError),
                 }
             }
             _ => self
@@ -49,9 +62,21 @@ impl Cpu {
 
         match segment {
             MipsSegment::Kseg2 => {
-                // We'll work on this later.
+                // Most of kseg2 is unmapped
                 match address {
-                    _ => unimplemented!("kseg2 access not implemented yet"),
+                    0xfffe_0130 => {
+                        // This is the BIU/Cache Control Register
+                        self.biu_cache_control = value;
+                        Ok(())
+                    }
+                    0xfffe_0000..=0xfffe_013f => {
+                        // Ignore writes to these reserved addresses
+                        println!(
+                            "[Cpu] Unimplemented write to reserved address {address:#x} in Kseg2"
+                        );
+                        Ok(())
+                    }
+                    _ => Err(MemoryError::BusError),
                 }
             }
             _ => self
