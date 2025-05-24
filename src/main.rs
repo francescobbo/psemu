@@ -30,13 +30,10 @@ struct MainArguments {
 fn load_bios(path: Option<String>) -> Vec<u8> {
     match path {
         Some(path) => {
-            std::fs::read(path.clone())
-                .expect(&format!("Failed to load BIOS file: {}", path))
+            std::fs::read(path.clone()).expect(&format!("Failed to load BIOS file: {}", path))
         }
-        None => {
-            std::fs::read("bios/bios.bin")
-                .expect("Could not load bios/bios.bin. You can specify a different path with --bios")
-        }
+        None => std::fs::read("bios/bios.bin")
+            .expect("Could not load bios/bios.bin. You can specify a different path with --bios"),
     }
 }
 
