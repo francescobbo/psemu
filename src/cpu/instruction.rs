@@ -34,4 +34,11 @@ bitfield! {
 
     /// The funct field (6 bits) specifies the exact operation to be performed
     pub funct, _: 5, 0;
+
+    /// Whether this instruction should be executed on the coprocessor
+    pub cop_execute, _: 25;
+
+    /// The operation to be performed for COP0 (0x10) to COP3 (0x13)
+    /// instructions
+    pub cop_funct, _: 24, 21;
 }
