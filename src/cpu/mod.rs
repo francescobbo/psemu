@@ -1,5 +1,7 @@
 mod arith;
 mod branch;
+mod control;
+mod cop;
 mod instruction;
 mod load_store;
 mod logic;
@@ -52,6 +54,9 @@ pub struct Cpu {
 
     /// The BIU/Cache Control Register
     pub biu_cache_control: u32,
+
+    /// The COP0 coprocessor, which handles system control operations.
+    pub cop0: control::Cop0
 }
 
 /// Represents a delayed load operation.
@@ -77,6 +82,7 @@ impl Cpu {
             current_load_delay: None,
             last_written_register: 0,
             biu_cache_control: 0,
+            cop0: control::Cop0::new(),
         }
     }
 
@@ -188,6 +194,23 @@ impl Cpu {
             0x0d => self.ins_ori(instruction),
             0x0e => self.ins_xori(instruction),
             0x0f => self.ins_lui(instruction),
+            0x10 => {
+                if instruction.cop_execute() {
+                    // Coprocessor 0 instructions
+                    self.cop0.execute(instruction);
+                } else {
+                    match instruction.cop_funct() {
+                        0 => self.ins_mfc0(instruction),
+                        2 => self.ins_cfc0(instruction),
+                        4 => self.ins_mtc0(instruction),
+                        6 => self.ins_ctc0(instruction),
+                        _ => panic!("Unimplemented cop0 funct: {:x}", instruction.rs()),
+                    }
+                }
+            }
+            0x11 => panic!("COP1 is not present on PS1"),
+            0x12 => unimplemented!("GTE is not implemented yet"),
+            0x13 => panic!("COP3 is not present on PS1"),
             0x20 => self.ins_lb(instruction),
             0x21 => self.ins_lh(instruction),
             0x22 => self.ins_lwl(instruction),

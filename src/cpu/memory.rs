@@ -39,8 +39,8 @@ impl Cpu {
                     }
                     0xfffe_0130..=0xfffe_0133 => {
                         assert!(
-                            size == 4 && address & 0x3 == 0,
-                            "[Cpu] Unimplemented write size ({size}b) for BIU/Cache Control Register"
+                            size == AccessSize::Word && address & 0x3 == 0,
+                            "[Cpu] Unimplemented write size ({size:?}) for BIU/Cache Control Register"
                         );
 
                         // This is the BIU/Cache Control Register
@@ -84,8 +84,8 @@ impl Cpu {
                     }
                     0xfffe_0130..=0xfffe_0133 => {
                         assert!(
-                            size == 4 && address & 0x3 == 0,
-                            "[Cpu] Unimplemented write size ({size}b) for BIU/Cache Control Register"
+                            size == AccessSize::Word && address & 0x3 == 0,
+                            "[Cpu] Unimplemented write size ({size:?}) for BIU/Cache Control Register"
                         );
 
                         // This is the BIU/Cache Control Register
