@@ -54,7 +54,7 @@ pub struct Cpu {
     pub biu_cache_control: u32,
 
     /// The COP0 coprocessor, which handles system control operations.
-    pub cop0: control::Cop0
+    pub cop0: control::Cop0,
 }
 
 /// Represents a delayed load operation.

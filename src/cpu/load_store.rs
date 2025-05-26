@@ -176,7 +176,9 @@ impl Cpu {
         // Perform an aligned read of 4 bytes Note that the real SWL does not
         // read the memory, the merging is performed by the RAM chip. We shall
         // not raise an exception if the read fails.
-        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap_or_default();
+        let aligned_word = self
+            .read_memory(addr & !3, AccessSize::Word)
+            .unwrap_or_default();
 
         // Get the current value of the register
         let reg = self.get_rt(instr);
@@ -216,7 +218,9 @@ impl Cpu {
         let addr = self.target_address(instr);
 
         // Perform an aligned read of 4 bytes
-        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap_or_default();
+        let aligned_word = self
+            .read_memory(addr & !3, AccessSize::Word)
+            .unwrap_or_default();
 
         // Get the current value of the register
         let reg = self.get_rt(instr);

@@ -23,6 +23,17 @@ impl Cpu {
         let (segment, phys_addr) = self.extract_segment(address);
 
         match segment {
+            MipsSegment::Kuseg | MipsSegment::Kseg0 => {
+                // Kuseg and Kseg0 are cached segments, and their behavior
+                // depends on the IsC bit in the CP0 Status register.
+                if self.cop0.isolate_cache() {
+                    return Ok(0);
+                }
+
+                self.bus
+                    .read(phys_addr, size)
+                    .map_err(|_| MemoryError::BusError)
+            }
             MipsSegment::Kseg2 => {
                 // Most of kseg2 is unmapped
                 match address {
@@ -61,6 +72,17 @@ impl Cpu {
         let (segment, phys_addr) = self.extract_segment(address);
 
         match segment {
+            MipsSegment::Kuseg | MipsSegment::Kseg0 => {
+                // Kuseg and Kseg0 are cached segments, and their behavior
+                // depends on the IsC bit in the CP0 Status register.
+                if self.cop0.isolate_cache() {
+                    return Ok(());
+                }
+
+                self.bus
+                    .write(phys_addr, value, size)
+                    .map_err(|_| MemoryError::BusError)
+            }
             MipsSegment::Kseg2 => {
                 // Most of kseg2 is unmapped
                 match address {
