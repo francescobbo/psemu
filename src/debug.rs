@@ -402,17 +402,6 @@ impl Debugger {
         }
     }
 
-    /// Parses a string as a hexadecimal number, allowing for an optional "0x" prefix.
-    fn parse_hex(string: &str) -> Result<u32, String> {
-        let string = string.strip_prefix("0x").unwrap_or(string);
-
-        u32::from_str_radix(string, 16).map_err(|_| {
-            format!(
-                "Invalid hexadecimal number: {string}. Expected format: 0x12345678 or 12345678"
-            )
-        })
-    }
-
     /// Checks if the given address is a breakpoint.
     pub fn has_breakpoint(&self, address: u32) -> bool {
         self.breakpoints.contains(&address)

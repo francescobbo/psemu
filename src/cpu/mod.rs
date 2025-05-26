@@ -204,7 +204,7 @@ impl Cpu {
                         2 => self.ins_cfc0(instruction),
                         4 => self.ins_mtc0(instruction),
                         6 => self.ins_ctc0(instruction),
-                        _ => panic!("Unimplemented cop0 funct: {:x}", instruction.rs()),
+                        _ => panic!("Unimplemented cop0 funct: {:#x}", instruction.rs()),
                     }
                 }
             }
