@@ -27,7 +27,9 @@ impl Emulator {
 
     // Perform one step of the emulator cycle.
     pub fn step(&mut self) -> bool {
-        if self.debugger.stepping {
+        if self.debugger.stepping || self.debugger.has_breakpoint(self.cpu.pc) {
+            self.debugger.stepping = true;
+            
             if self.debugger.enter(&mut self.cpu) {
                 // If the debugger returns true, it means we should quit
                 return true;
