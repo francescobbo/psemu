@@ -42,6 +42,22 @@ const DRAM_CONTROL_BASE: u32 = 0x1f80_1060;
 const DRAM_CONTROL_SIZE: u32 = 4; // 4 bytes for the DRAM control register
 const DRAM_CONTROL_END: u32 = DRAM_CONTROL_BASE + DRAM_CONTROL_SIZE - 1;
 
+const IO_STUBS: &[(u32, u32, &str)] = &[
+    (0x1f000000, 0x1f7fffff, "Exp1"),
+    (0x1f800000, 0x1f8003ff, "Scratchpad"),
+    (0x1f801040, 0x1f80104f, "Joypad"),
+    (0x1f801050, 0x1f80105f, "Serial"),
+    (0x1f801070, 0x1f801077, "Interrupts"),
+    (0x1f801080, 0x1f8010ff, "DMA"),
+    (0x1f801100, 0x1f80112f, "Timers"),
+    (0x1f801800, 0x1f801803, "CD-ROM"),
+    (0x1f801810, 0x1f801817, "GPU"),
+    (0x1f801820, 0x1f801827, "MDEC"),
+    (0x1f801c00, 0x1f801fff, "SPU"),
+    (0x1f802000, 0x1f803fff, "Exp2"),
+    (0x1fa00000, 0x1fbfffff, "Exp3"),
+];
+
 impl Bus {
     /// Creates a new system bus.
     pub fn new() -> Self {
@@ -55,6 +71,13 @@ impl Bus {
 
     /// Performs a read operation on the bus.
     pub fn read(&self, address: u32, size: AccessSize) -> Result<u32, ()> {
+        for &(start, end, name) in IO_STUBS {
+            if address >= start && address <= end {
+                println!("[{name}] Reading ({size:?}) at {address:08x}");
+                return Ok(0);
+            }
+        }
+
         match address {
             ram::RAM_BASE..=ram::RAM_END => Ok(self.ram.read(address, size)),
             rom::ROM_BASE..=rom::ROM_END => Ok(self.rom.read(address, size)),
@@ -84,6 +107,13 @@ impl Bus {
 
     /// Performs a write operation on the bus.
     pub fn write(&mut self, address: u32, value: u32, size: AccessSize) -> Result<(), ()> {
+        for &(start, end, name) in IO_STUBS {
+            if address >= start && address <= end {
+                println!("[{name}] Writing {value:x} ({size:?}) at {address:08x}");
+                return Ok(());
+            }
+        }
+
         match address {
             ram::RAM_BASE..=ram::RAM_END => self.ram.write(address, value, size),
             0x1f80_4000 => print!("{}", value as u8 as char),
