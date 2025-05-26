@@ -20,6 +20,7 @@ pub struct Debugger {
 /// Represents the different combinations of arguments for the opcodes
 #[allow(non_camel_case_types)]
 enum ArgumentTypes {
+    None,      // No arguments
     D_S_T,     // rd, rs, rt
     D_T_S,     // rd, rt, rs
     D_T_Shift, // rt, rd, shift
@@ -242,6 +243,8 @@ impl Debugger {
                 0x07 => Self::format_instruction(ins, "srav", ArgumentTypes::D_T_S, pc),
                 0x08 => Self::format_instruction(ins, "jr", ArgumentTypes::S, pc),
                 0x09 => Self::format_instruction(ins, "jalr", ArgumentTypes::S_D, pc),
+                0x0c => Self::format_instruction(ins, "syscall", ArgumentTypes::None, pc),
+                0x0d => Self::format_instruction(ins, "break", ArgumentTypes::None, pc),
                 0x10 => Self::format_instruction(ins, "mfhi", ArgumentTypes::D, pc),
                 0x11 => Self::format_instruction(ins, "mthi", ArgumentTypes::S, pc),
                 0x12 => Self::format_instruction(ins, "mflo", ArgumentTypes::D, pc),
@@ -317,6 +320,7 @@ impl Debugger {
     /// Format the arguments types for display
     fn format_args(ins: Instruction, arg_types: ArgumentTypes, pc: u32) -> String {
         match arg_types {
+            ArgumentTypes::None => String::new(),
             ArgumentTypes::D_S_T => format!(
                 "{}, {}, {}",
                 REGISTERS[ins.rd()],
