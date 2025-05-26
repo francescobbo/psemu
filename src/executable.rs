@@ -119,8 +119,12 @@ impl Executable {
         // Load the program into RAM
         let start_address = self.header.load_address;
         for (i, byte) in self.code.iter().enumerate() {
-            cpu.write_memory(start_address + i as u32, *byte as u32, crate::bus::AccessSize::Byte)
-                .expect("Failed to write to memory");
+            cpu.write_memory(
+                start_address + i as u32,
+                *byte as u32,
+                crate::bus::AccessSize::Byte,
+            )
+            .expect("Failed to write to memory");
         }
 
         // Zero out the BSS section

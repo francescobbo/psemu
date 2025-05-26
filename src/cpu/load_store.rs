@@ -16,7 +16,7 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lb(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         match self.read_memory(address, AccessSize::Byte) {
             Ok(value) => {
                 // Sign-extend the byte value
@@ -32,7 +32,7 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 16-bit])
     pub(super) fn ins_lh(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         match self.read_memory(address, AccessSize::HalfWord) {
             Ok(value) => {
                 // Sign-extend the half-word value
@@ -79,7 +79,7 @@ impl Cpu {
     /// GPR[rt] = Memory[rs + offset, 32-bit]
     pub(super) fn ins_lw(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         match self.read_memory(address, AccessSize::Word) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(_) => self.exception("Memory read error")
@@ -91,7 +91,7 @@ impl Cpu {
     /// GPR[rt] = zero_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lbu(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
-        
+
         match self.read_memory(address, AccessSize::Byte) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(_) => self.exception("Memory read error")
@@ -173,7 +173,9 @@ impl Cpu {
         // Perform an aligned read of 4 bytes Note that the real SWL does not
         // read the memory, the merging is performed by the RAM chip. We shall
         // not raise an exception if the read fails.
-        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap_or_default();
+        let aligned_word = self
+            .read_memory(addr & !3, AccessSize::Word)
+            .unwrap_or_default();
 
         // Get the current value of the register
         let reg = self.get_rt(instr);
@@ -213,7 +215,9 @@ impl Cpu {
         let addr = self.target_address(instr);
 
         // Perform an aligned read of 4 bytes
-        let aligned_word = self.read_memory(addr & !3, AccessSize::Word).unwrap_or_default();
+        let aligned_word = self
+            .read_memory(addr & !3, AccessSize::Word)
+            .unwrap_or_default();
 
         // Get the current value of the register
         let reg = self.get_rt(instr);

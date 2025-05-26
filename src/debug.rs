@@ -232,6 +232,7 @@ impl Debugger {
             0x0d => Self::format_instruction(ins, "ori", ArgumentTypes::T_S_Imm, pc),
             0x0e => Self::format_instruction(ins, "xori", ArgumentTypes::T_S_Imm, pc),
             0x0f => Self::format_instruction(ins, "lui", ArgumentTypes::T_Imm, pc),
+            0x10..=0x13 => Self::format_coprocessor_instruction(ins),
             0x20 => Self::format_instruction(ins, "lb", ArgumentTypes::T_Mem, pc),
             0x21 => Self::format_instruction(ins, "lh", ArgumentTypes::T_Mem, pc),
             0x22 => Self::format_instruction(ins, "lwl", ArgumentTypes::T_Mem, pc),
@@ -320,6 +321,29 @@ impl Debugger {
             ArgumentTypes::Jump => {
                 let target = (pc & 0xf000_0000) | (ins.jump_target() << 2);
                 format!("{:x}", target)
+            }
+        }
+    }
+
+    /// Coprocessor instruction have unique formatting rules. This function formats
+    /// them based on the opcode and the specific coprocessor instruction.
+    fn format_coprocessor_instruction(ins: Instruction) -> String {
+        // Get the coprocessor number from the opcode
+        let cop = ins.opcode() & 3;
+
+        if ins.cop_execute() {
+            // Coprocessor specific opcode
+            format!("cop{} execute: {:x}", cop, ins.0 & 0xffffff)
+        } else {
+            let gpr = REGISTERS[ins.rt()];
+            let cop_reg = ins.rd();
+
+            match ins.cop_funct() {
+                0 => format!("mfc{cop} {gpr}, cop{cop_reg}"),
+                2 => format!("cfc{cop} {gpr}, cop{}", cop_reg + 32),
+                4 => format!("mtc{cop} cop{cop_reg}, {gpr}"),
+                6 => format!("ctc{cop} cop{}, {gpr}", cop_reg + 32),
+                _ => format!("unknown cop{} funct: {:x}", cop, ins.cop_funct()),
             }
         }
     }
