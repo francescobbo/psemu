@@ -21,7 +21,8 @@ impl Emulator {
             if self.debugger.quit {
                 println!("Quitting...");
                 break;
-            } else if self.debugger.stepping {
+            } else if self.debugger.stepping || self.debugger.has_breakpoint(self.cpu.pc) {
+                self.debugger.stepping = true;
                 self.debugger.enter(&mut self.cpu);
             }
 
