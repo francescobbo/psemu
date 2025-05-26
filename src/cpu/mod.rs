@@ -1,6 +1,7 @@
 mod arith;
 mod branch;
 mod control;
+mod control_types;
 mod cop;
 mod instruction;
 mod load_store;
@@ -133,6 +134,8 @@ impl Cpu {
                     0x07 => self.ins_srav(instruction),
                     0x08 => self.ins_jr(instruction),
                     0x09 => self.ins_jalr(instruction),
+                    0x0c => self.ins_syscall(instruction),
+                    0x0d => self.ins_break(instruction),
                     0x10 => self.ins_mfhi(instruction),
                     0x11 => self.ins_mthi(instruction),
                     0x12 => self.ins_mflo(instruction),

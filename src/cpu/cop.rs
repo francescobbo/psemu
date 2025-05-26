@@ -1,6 +1,26 @@
 use crate::cpu::{Cpu, Instruction};
 
+use super::control_types::ExceptionCause;
+
 impl Cpu {
+    /// 00.0C - SYSCALL
+    /// Triggers a Syscall exception
+    pub fn ins_syscall(&mut self, _instruction: Instruction) {
+        self.pc = self.cop0.start_exception(
+            ExceptionCause::Syscall,
+            self.pc.wrapping_sub(4),
+        );
+    }
+
+    /// 00.0D - BREAK
+    /// Triggers a Breakpoint exception
+    pub fn ins_break(&mut self, _instruction: Instruction) {
+        self.pc = self.cop0.start_exception(
+            ExceptionCause::Breakpoint,
+            self.pc.wrapping_sub(4),
+        );
+    }
+
     /// 10.00 - MFC0 - R-Type (kind of)
     /// MFC0 rt, rd
     /// GPR[rt] = COP0[rd]
