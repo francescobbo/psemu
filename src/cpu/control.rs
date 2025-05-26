@@ -66,7 +66,7 @@ impl Cop0 {
     /// Writes a value to the specified Cop0 register.
     pub fn write(&mut self, reg: usize, value: u32) -> Result<(), ()> {
         println!("[Cop0] Writing to register {reg}: {value:x}");
-        
+
         match reg {
             3 => self.bpc = value,
             5 => self.bda = value,
@@ -78,8 +78,8 @@ impl Cop0 {
             12 => self.sr = value,
             13 => self.cause = value,
             14 => self.epc = value,
-            15 => {} // Processor ID is read-only, do nothing
-            _ => return Err(()) // The register does not exist on the PS1
+            15 => {}             // Processor ID is read-only, do nothing
+            _ => return Err(()), // The register does not exist on the PS1
         }
 
         Ok(())
@@ -87,5 +87,12 @@ impl Cop0 {
 
     pub fn execute(&mut self, instruction: Instruction) {
         unimplemented!("COP0 instruction: {:?}", instruction);
+    }
+
+    /// Checks if bit #16 of the Status Register is set, which indicates that
+    /// the cache should be made accessible to the CPU as the first 4KB of
+    /// memory.
+    pub fn isolate_cache(&self) -> bool {
+        (self.sr & (1 << 16)) != 0
     }
 }

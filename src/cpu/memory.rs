@@ -20,6 +20,11 @@ impl Cpu {
     pub fn read_memory(&self, address: u32, size: AccessSize) -> Result<u32, MemoryError> {
         Self::check_alignment(address, size)?;
 
+        if self.cop0.isolate_cache() && address < 0x1000 {
+            // The I-Cache is mounted to the first 4KB of memory, but unimplemented
+            return Ok(0);
+        }
+
         let (segment, phys_addr) = self.extract_segment(address);
 
         match segment {
@@ -46,7 +51,7 @@ impl Cpu {
                         // This is the BIU/Cache Control Register
                         Ok(self.biu_cache_control)
                     }
-                    _ => Err(AccessError::BusError),
+                    _ => Err(MemoryError::BusError),
                 }
             }
             _ => self
@@ -64,6 +69,11 @@ impl Cpu {
         size: AccessSize,
     ) -> Result<(), MemoryError> {
         Self::check_alignment(address, size)?;
+
+        if self.cop0.isolate_cache() && address < 0x1000 {
+            // The I-Cache is mounted to the first 4KB of memory, but unimplemented
+            return Ok(());
+        }
 
         let (segment, phys_addr) = self.extract_segment(address);
 
@@ -92,7 +102,7 @@ impl Cpu {
                         self.biu_cache_control = value;
                         Ok(())
                     }
-                    _ => Err(AccessError::BusError),
+                    _ => Err(MemoryError::BusError),
                 }
             }
             _ => self
