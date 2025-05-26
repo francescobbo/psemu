@@ -2,6 +2,7 @@ use crate::{
     cpu::Cpu,
     bus::AccessSize,
 };
+use std::collections::HashSet;
 use rustyline::{DefaultEditor, error::ReadlineError};
 
 #[derive(Debug)]
@@ -14,6 +15,9 @@ pub struct Debugger {
 
     /// Rustyline instance for command line input, with no special configuration.
     editor: DefaultEditor,
+
+    /// The addresses where the debugger will break the execution
+    breakpoints: HashSet<u32>,
 }
 
 const REGISTERS: [&str; 32] = [
@@ -34,6 +38,7 @@ impl Debugger {
             stepping: false,
             disasm: psdisasm::Disasm::default(),
             editor,
+            breakpoints: HashSet::new(),
         }
     }
 
@@ -92,6 +97,55 @@ impl Debugger {
                     };
 
                     Self::read_memory(cpu, address);
+                }
+                // Add a breakpoint
+                "b" | "breakpoint" => {
+                    // Get the address from the command line
+                    let Some(address_str) = parts.next() else {
+                        println!("Usage: breakpoint <address>");
+                        continue;
+                    };
+
+                    // Parse the address
+                    let Ok(address) = Self::parse_hex(address_str) else {
+                        println!("Invalid address: {address_str}");
+                        continue;
+                    };
+
+                    // Add the breakpoint
+                    self.breakpoints.insert(address);
+                }
+                // List breakpoints
+                "bl" | "breakpoints" => {
+                    if self.breakpoints.is_empty() {
+                        println!("No breakpoints set.");
+                    } else {
+                        println!("Breakpoints:");
+                        for &address in &self.breakpoints {
+                            println!("  0x{:08x}", address);
+                        }
+                    }
+                }
+                // Remove a breakpoint
+                "rb" | "remove-breakpoint" => {
+                    // Get the address from the command line
+                    let Some(address_str) = parts.next() else {
+                        println!("Usage: remove-breakpoint <address>");
+                        continue;
+                    };
+
+                    // Parse the address
+                    let Ok(address) = Self::parse_hex(address_str) else {
+                        println!("Invalid address: {address_str}");
+                        continue;
+                    };
+
+                    // Remove the breakpoint
+                    if self.breakpoints.remove(&address) {
+                        println!("Breakpoint at {address:08x} removed.");
+                    } else {
+                        println!("No breakpoint at {address:08x}.");
+                    }
                 }
                 _ => println!("Unknown command: {}", cmd),
             }
@@ -159,6 +213,11 @@ impl Debugger {
             Ok(value) => println!("{address:08x}: {value:08x}"),
             Err(_) => println!("Error reading memory at address {address:08x}"),
         }
+    }
+
+    /// Checks if the given address is a breakpoint.
+    pub fn has_breakpoint(&self, address: u32) -> bool {
+        self.breakpoints.contains(&address)
     }
 }
 
