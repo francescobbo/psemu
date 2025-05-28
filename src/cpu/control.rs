@@ -87,7 +87,18 @@ impl Cop0 {
     }
 
     pub fn execute(&mut self, instruction: Instruction) {
-        unimplemented!("COP0 instruction: {:?}", instruction);
+        if instruction.cop_instruction() == 0x10 {
+            // RFE: shift the low 6 bits of the Status Register by 2, then set
+            // them again. KUo and IEo are copied, but left unchanged.
+            let low_fields = self.status.low_fields();
+            self.status
+                .set_low_fields(low_fields & 0x30 | (low_fields >> 2));
+        } else {
+            panic!(
+                "[Cop0] Unimplemented coprocessor instruction: {:#x}",
+                instruction.cop_instruction()
+            );
+        }
     }
 
     /// Sets up the coprocessor registers to handle an exception, and returns
@@ -95,22 +106,37 @@ impl Cop0 {
     ///
     /// This method updates the Status Register, Cause Register, and Exception
     /// Program Counter (EPC).
-    /// 
+    ///
     /// The `cause` parameter specifies the type of exception, and the `pc`
     /// parameter is the program counter that caused the exception.
-    pub fn start_exception(&mut self, cause: ExceptionCause, pc: u32) -> u32 {
+    ///
+    /// The `bds` parameter indicates whether the exception occurred in a
+    /// branch delay slot.
+    pub fn start_exception(&mut self, cause: ExceptionCause, pc: u32, bds: bool) -> u32 {
         // Copy the low 4 bits into bits 6-4 of the Status Register
         self.status.set_low_fields(self.status.low_fields() << 2);
 
-        // Set the EPC (Exception Program Counter) to the address of the
-        // instruction that caused the exception.
-        self.epc = pc;
+        // Set the BD bit if the exception occurred in a branch delay slot
+        self.cause.set_branch_delay(bds);
+
+        if bds {
+            // If the exception occurred in a branch delay slot, go back one
+            // instruction to point to the branch instruction.
+            self.epc = pc.wrapping_sub(4);
+        } else {
+            self.epc = pc;
+        }
 
         // Set the exception code in Cause
         self.cause.set_exception_code(cause.clone());
 
         // Determine and return the target address for the exception handler
-        0x8000_0080
+        match (cause, self.status.boot_exception_vectors()) {
+            (ExceptionCause::Breakpoint, false) => 0x8000_0040,
+            (ExceptionCause::Breakpoint, true) => 0xbfc0_0140,
+            (_, false) => 0x8000_0080,
+            (_, true) => 0xbfc0_0180,
+        }
     }
 
     /// Checks if bit #16 of the Status Register is set, which indicates that

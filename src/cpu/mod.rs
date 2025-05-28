@@ -11,6 +11,7 @@ mod memory;
 mod test_utils;
 
 use crate::bus::Bus;
+use control_types::ExceptionCause;
 pub use instruction::Instruction;
 
 use crate::bus::AccessSize;
@@ -162,7 +163,7 @@ impl Cpu {
                             instruction.funct(),
                             self.pc - 4
                         );
-                        self.exception("Unimplemented funct");
+                        self.exception(ExceptionCause::ReservedInstruction);
                     }
                 }
             }
@@ -179,7 +180,7 @@ impl Cpu {
                             instruction.rt(),
                             self.pc - 4
                         );
-                        self.exception("Unimplemented funct");
+                        self.exception(ExceptionCause::ReservedInstruction);
                     }
                 }
             }
@@ -232,7 +233,7 @@ impl Cpu {
                     instruction.funct(),
                     self.pc - 4
                 );
-                self.exception("Unimplemented funct");
+                self.exception(ExceptionCause::ReservedInstruction);
             }
         }
     }
@@ -283,10 +284,5 @@ impl Cpu {
 
         // Reset the last written register for the next cycle
         self.last_written_register = 0;
-    }
-
-    /// Raises an exception (stub for now)
-    fn exception(&mut self, code: &str) {
-        panic!("Exception raised: {code}");
     }
 }

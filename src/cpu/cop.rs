@@ -6,19 +6,13 @@ impl Cpu {
     /// 00.0C - SYSCALL
     /// Triggers a Syscall exception
     pub fn ins_syscall(&mut self, _instruction: Instruction) {
-        self.pc = self.cop0.start_exception(
-            ExceptionCause::Syscall,
-            self.pc.wrapping_sub(4),
-        );
+        self.exception(ExceptionCause::Syscall);
     }
 
     /// 00.0D - BREAK
     /// Triggers a Breakpoint exception
     pub fn ins_break(&mut self, _instruction: Instruction) {
-        self.pc = self.cop0.start_exception(
-            ExceptionCause::Breakpoint,
-            self.pc.wrapping_sub(4),
-        );
+        self.exception(ExceptionCause::Breakpoint);
     }
 
     /// 10.00 - MFC0 - R-Type (kind of)
@@ -55,5 +49,16 @@ impl Cpu {
     /// See `ins_cfc0`
     pub(super) fn ins_ctc0(&mut self, _instruction: Instruction) {
         panic!("CTC0 instruction is not supported on PS1");
+    }
+
+    pub(super) fn exception(&mut self, cause: ExceptionCause) {
+        let is_branch_delay_slot = self.current_branch_target.is_some();
+
+        // If there was a branch target, we ignore it
+        self.current_branch_target = None;
+
+        self.pc = self
+            .cop0
+            .start_exception(cause, self.pc.wrapping_sub(4), is_branch_delay_slot);
     }
 }

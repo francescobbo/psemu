@@ -1,4 +1,4 @@
-use super::{Cpu, DelayedLoad, Instruction};
+use super::{control_types::{Cause, ExceptionCause}, Cpu, DelayedLoad, Instruction};
 use crate::bus::AccessSize;
 
 impl Cpu {
@@ -22,7 +22,7 @@ impl Cpu {
             let value = value as i8 as u32;
             self.delayed_load(instr.rt(), value);
         } else {
-            self.exception("Memory read error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -37,7 +37,7 @@ impl Cpu {
             let value = value as i16 as u32;
             self.delayed_load(instr.rt(), value);
         } else {
-            self.exception("Memory read error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -75,7 +75,7 @@ impl Cpu {
         if let Ok(value) = self.read_memory(address, AccessSize::Word) {
             self.delayed_load(instr.rt(), value);
         } else {
-            self.exception("Memory read error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -87,7 +87,7 @@ impl Cpu {
         if let Ok(value) = self.read_memory(address, AccessSize::Byte) {
             self.delayed_load(instr.rt(), value);
         } else {
-            self.exception("Memory read error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -100,7 +100,7 @@ impl Cpu {
         if let Ok(value) = self.read_memory(address, AccessSize::HalfWord) {
             self.delayed_load(instr.rt(), value);
         } else {
-            self.exception("Memory read error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -135,7 +135,7 @@ impl Cpu {
         let value = self.get_rt(instr);
 
         if self.write_memory(address, value, AccessSize::Byte).is_err() {
-            self.exception("Memory write error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -150,7 +150,7 @@ impl Cpu {
             .write_memory(address, value, AccessSize::HalfWord)
             .is_err()
         {
-            self.exception("Memory write error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
@@ -189,7 +189,7 @@ impl Cpu {
         let value = self.get_rt(instr);
 
         if self.write_memory(address, value, AccessSize::Word).is_err() {
-            self.exception("Memory write error");
+            self.exception(ExceptionCause::DataBusError);
         }
     }
 
