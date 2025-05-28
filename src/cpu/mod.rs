@@ -10,8 +10,10 @@ mod memory;
 #[cfg(test)]
 mod test_utils;
 
-use crate::bus::{Bus, AccessSize};
+use crate::bus::{AccessSize, Bus};
+use control_types::ExceptionCause;
 pub use instruction::Instruction;
+use memory::{AccessType, MemoryError};
 
 const NUM_REGISTERS: usize = 32;
 
@@ -94,7 +96,14 @@ impl Cpu {
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
-        let instruction = self.fetch_instruction(self.pc);
+        let instruction = match self.fetch_instruction(self.pc) {
+            Ok(value) => value,
+            Err(err) => {
+                // If we failed to fetch the instruction, we handle the error
+                self.memory_access_exception(err, AccessType::InstructionFetch, self.pc);
+                return;
+            }
+        };
 
         // Update PC to point to the following instruction.
         self.pc += 4;
@@ -116,8 +125,8 @@ impl Cpu {
     }
 
     /// Fetch the instruction from the given address.
-    fn fetch_instruction(&self, address: u32) -> Instruction {
-        Instruction(self.read_memory(address, AccessSize::Word).unwrap())
+    fn fetch_instruction(&self, address: u32) -> Result<Instruction, MemoryError> {
+        Ok(Instruction(self.read_memory(address, AccessSize::Word)?))
     }
 
     /// Execute an instruction
@@ -160,7 +169,7 @@ impl Cpu {
                             instruction.funct(),
                             self.pc - 4
                         );
-                        self.exception("Unimplemented funct");
+                        self.exception(ExceptionCause::ReservedInstruction);
                     }
                 }
             }
@@ -177,7 +186,7 @@ impl Cpu {
                             instruction.rt(),
                             self.pc - 4
                         );
-                        self.exception("Unimplemented funct");
+                        self.exception(ExceptionCause::ReservedInstruction);
                     }
                 }
             }
@@ -230,7 +239,7 @@ impl Cpu {
                     instruction.funct(),
                     self.pc - 4
                 );
-                self.exception("Unimplemented funct");
+                self.exception(ExceptionCause::ReservedInstruction);
             }
         }
     }
@@ -283,8 +292,14 @@ impl Cpu {
         self.last_written_register = 0;
     }
 
-    /// Raises an exception (stub for now)
-    fn exception(&mut self, code: &str) {
-        panic!("Exception raised: {code}");
+    pub(super) fn exception(&mut self, cause: ExceptionCause) {
+        let is_branch_delay_slot = self.current_branch_target.is_some();
+
+        // If there was a branch target, we ignore it
+        self.current_branch_target = None;
+
+        self.pc = self
+            .cop0
+            .start_exception(cause, self.pc.wrapping_sub(4), is_branch_delay_slot);
     }
 }

@@ -17,7 +17,7 @@ pub struct Cop0 {
     pub dcic: u32,
 
     /// r8 - Bad Address
-    pub bada: u32,
+    pub bad_vaddr: u32,
 
     /// r9 - Breakpoint Data Address Mask
     pub bdma: u32,
@@ -53,7 +53,7 @@ impl Cop0 {
             5 => Some(self.bda),
             6 => Some(self.tar),
             7 => Some(self.dcic),
-            8 => Some(self.bada),
+            8 => Some(self.bad_vaddr),
             9 => Some(self.bdma),
             11 => Some(self.bpcm),
             12 => Some(self.status.0),
@@ -73,7 +73,7 @@ impl Cop0 {
             5 => self.bda = value,
             6 => self.tar = value,
             7 => self.dcic = value,
-            8 => self.bada = value,
+            8 => self.bad_vaddr = value,
             9 => self.bdma = value,
             11 => self.bpcm = value,
             12 => self.status.0 = value,
@@ -87,7 +87,18 @@ impl Cop0 {
     }
 
     pub fn execute(&mut self, instruction: Instruction) {
-        unimplemented!("COP0 instruction: {:?}", instruction);
+        if instruction.cop_instruction() == 0x10 {
+            // RFE: shift the low 6 bits of the Status Register by 2, then set
+            // them again. KUo and IEo are copied, but left unchanged.
+            let low_fields = self.status.low_fields();
+            self.status
+                .set_low_fields(low_fields & 0x30 | (low_fields >> 2));
+        } else {
+            panic!(
+                "[Cop0] Unimplemented coprocessor instruction: {:#x}",
+                instruction.cop_instruction()
+            );
+        }
     }
 
     /// Sets up the coprocessor registers to handle an exception, and returns
@@ -95,16 +106,26 @@ impl Cop0 {
     ///
     /// This method updates the Status Register, Cause Register, and Exception
     /// Program Counter (EPC).
-    /// 
+    ///
     /// The `cause` parameter specifies the type of exception, and the `pc`
     /// parameter is the program counter that caused the exception.
-    pub fn start_exception(&mut self, cause: ExceptionCause, pc: u32) -> u32 {
+    ///
+    /// The `bds` parameter indicates whether the exception occurred in a
+    /// branch delay slot.
+    pub fn start_exception(&mut self, cause: ExceptionCause, pc: u32, bds: bool) -> u32 {
         // Copy the low 4 bits into bits 6-4 of the Status Register
         self.status.set_low_fields(self.status.low_fields() << 2);
 
-        // Set the EPC (Exception Program Counter) to the address of the
-        // instruction that caused the exception.
-        self.epc = pc;
+        // Set the BD bit if the exception occurred in a branch delay slot
+        self.cause.set_branch_delay(bds);
+
+        if bds {
+            // If the exception occurred in a branch delay slot, go back one
+            // instruction to point to the branch instruction.
+            self.epc = pc.wrapping_sub(4);
+        } else {
+            self.epc = pc;
+        }
 
         // Set the exception code in Cause
         self.cause.set_exception_code(cause.clone());

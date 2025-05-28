@@ -1,4 +1,4 @@
-use super::{Cpu, DelayedLoad, Instruction};
+use super::{Cpu, DelayedLoad, Instruction, memory::AccessType};
 use crate::bus::AccessSize;
 
 impl Cpu {
@@ -23,7 +23,7 @@ impl Cpu {
                 let value = value as i8 as u32;
                 self.delayed_load(instr.rt(), value);
             }
-            Err(_) => self.exception("Memory read error"),
+            Err(err) => self.memory_access_exception(err, AccessType::Read, address),
         }
     }
 
@@ -39,7 +39,7 @@ impl Cpu {
                 let value = value as i16 as u32;
                 self.delayed_load(instr.rt(), value);
             }
-            Err(_) => self.exception("Memory read error"),
+            Err(err) => self.memory_access_exception(err, AccessType::Read, address),
         }
     }
 
@@ -53,8 +53,8 @@ impl Cpu {
         // Perform an aligned load of 4 bytes
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
             Ok(value) => value,
-            Err(_) => {
-                self.exception("Memory read error");
+            Err(err) => {
+                self.memory_access_exception(err, AccessType::Read, addr);
                 return;
             }
         };
@@ -82,7 +82,7 @@ impl Cpu {
 
         match self.read_memory(address, AccessSize::Word) {
             Ok(value) => self.delayed_load(instr.rt(), value),
-            Err(_) => self.exception("Memory read error")
+            Err(err) => self.memory_access_exception(err, AccessType::Read, address),
         }
     }
 
@@ -94,7 +94,7 @@ impl Cpu {
 
         match self.read_memory(address, AccessSize::Byte) {
             Ok(value) => self.delayed_load(instr.rt(), value),
-            Err(_) => self.exception("Memory read error")
+            Err(err) => self.memory_access_exception(err, AccessType::Read, address),
         }
     }
 
@@ -106,7 +106,7 @@ impl Cpu {
 
         match self.read_memory(address, AccessSize::HalfWord) {
             Ok(value) => self.delayed_load(instr.rt(), value),
-            Err(_) => self.exception("Memory read error")
+            Err(err) => self.memory_access_exception(err, AccessType::Read, address),
         }
     }
 
@@ -120,8 +120,8 @@ impl Cpu {
         // Perform an aligned load of 4 bytes
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
             Ok(value) => value,
-            Err(_) => {
-                self.exception("Memory read error");
+            Err(err) => {
+                self.memory_access_exception(err, AccessType::Read, addr);
                 return;
             }
         };
@@ -146,8 +146,8 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        if self.write_memory(address, value, AccessSize::Byte).is_err() {
-            self.exception("Memory write error")
+        if let Err(err) = self.write_memory(address, value, AccessSize::Byte) {
+            self.memory_access_exception(err, AccessType::Write, address);
         }
     }
 
@@ -158,11 +158,8 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        if self
-            .write_memory(address, value, AccessSize::HalfWord)
-            .is_err()
-        {
-            self.exception("Memory write error")
+        if let Err(err) = self.write_memory(address, value, AccessSize::HalfWord) {
+            self.memory_access_exception(err, AccessType::Write, address);
         }
     }
 
@@ -193,8 +190,8 @@ impl Cpu {
         };
 
         // Write the modified value back to memory, aligned to a word boundary
-        if self.write_memory(addr & !3, value, AccessSize::Word).is_err() {
-            self.exception("Memory write error");
+        if let Err(err) = self.write_memory(addr & !3, value, AccessSize::Word) {
+            self.memory_access_exception(err, AccessType::Write, addr & !3);
         }
     }
 
@@ -205,8 +202,8 @@ impl Cpu {
         let address = self.target_address(instr);
         let value = self.get_rt(instr);
 
-        if self.write_memory(address, value, AccessSize::Word).is_err() {
-            self.exception("Memory write error")
+        if let Err(err) = self.write_memory(address, value, AccessSize::Word) {
+            self.memory_access_exception(err, AccessType::Write, address);
         }
     }
 
@@ -235,8 +232,8 @@ impl Cpu {
         };
 
         // Write the modified value back to memory, aligned to a word boundary
-        if self.write_memory(addr & !3, value, AccessSize::Word).is_err() {
-            self.exception("Memory write error");
+        if let Err(err) = self.write_memory(addr & !3, value, AccessSize::Word) {
+            self.memory_access_exception(err, AccessType::Write, addr & !3);
         }
     }
 

@@ -41,4 +41,8 @@ bitfield! {
     /// The operation to be performed for COP0 (0x10) to COP3 (0x13)
     /// instructions
     pub cop_funct, _: 24, 21;
+
+    /// The coprocessor specific part of the instruction, used when cop_execute
+    /// is set
+    pub cop_instruction, _: 24, 0;
 }

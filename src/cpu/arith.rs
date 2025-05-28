@@ -1,4 +1,4 @@
-use super::{Cpu, Instruction};
+use super::{Cpu, Instruction, control_types::ExceptionCause};
 
 impl Cpu {
     /// 00.10 - MFHI - R-Type
@@ -100,14 +100,19 @@ impl Cpu {
 
     /// 00.20 - ADD - R-Type
     /// ADD rd, rs, rt
-    /// GPR[rd] = GPR[rs] + GPR[rt]
+    /// GPR[rd] = signed(GPR[rs]) + signed(GPR[rt])
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
     pub(super) fn ins_add(&mut self, instruction: Instruction) {
         let rs = self.get_rs(instruction) as i32;
         let rt = self.get_rt(instruction) as i32;
 
-        self.write_reg(instruction.rd(), (rs + rt) as u32);
+        match rs.checked_add(rt) {
+            // If the addition was successful, write the result to the destination register
+            Some(result) => self.write_reg(instruction.rd(), result as u32),
+            // This means overflow occurred
+            None => self.exception(ExceptionCause::Overflow),
+        }
     }
 
     /// 00.21 - ADDU - R-Type
@@ -125,14 +130,17 @@ impl Cpu {
 
     /// 00.22 - SUB - R-Type
     /// SUB rd, rs, rt
-    /// GPR[rd] = GPR[rs] - GPR[rt]
+    /// GPR[rd] = signed(GPR[rs]) - signed(GPR[rt])
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
     pub(super) fn ins_sub(&mut self, instruction: Instruction) {
         let rs = self.get_rs(instruction) as i32;
         let rt = self.get_rt(instruction) as i32;
 
-        self.write_reg(instruction.rd(), (rs - rt) as u32);
+        match rs.checked_sub(rt) {
+            Some(result) => self.write_reg(instruction.rd(), result as u32),
+            None => self.exception(ExceptionCause::Overflow),
+        }
     }
 
     /// 00.23 - SUBU - R-Type
@@ -150,7 +158,7 @@ impl Cpu {
 
     /// 08 - ADDI - I-type
     /// ADDIU rt, rs, immediate
-    /// GPR[rt] = GPR[rs] + sign_extended(immediate_value)
+    /// GPR[rt] = signed(GPR[rs]) + sign_extended(immediate_value)
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
     pub(super) fn ins_addi(&mut self, instr: Instruction) {
@@ -159,7 +167,7 @@ impl Cpu {
 
         match value.checked_add(immediate) {
             Some(result) => self.write_reg(instr.rt(), result as u32),
-            None => self.exception("Overflow"),
+            None => self.exception(ExceptionCause::Overflow),
         }
     }
 
@@ -356,7 +364,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_add_overflow() {
         let mut cpu = test_cpu(
             &[(7, 0x7fff_ffff), (1, 1)],
@@ -367,9 +374,12 @@ mod tests {
         );
         cpu.step();
 
-        // This should panic due to overflow as 7fff_ffff is the largest signed
-        // 32-bit integer, and adding 1 would take us to the largest signed
-        // negative integer.
+        // This should cause an exception due to overflow, as 7fff_ffff is the
+        // largest signed 32-bit integer, and adding 1 would take us to the
+        // largest signed negative integer.
+
+        assert_eq!(cpu.cop0.cause.exception_code(), ExceptionCause::Overflow);
+        assert_eq!(cpu.pc, 0x8000_0080);
     }
 
     #[test]
@@ -422,7 +432,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_sub_overflow() {
         let mut cpu = test_cpu(
             &[(7, 0x8000_0000), (1, 1)],
@@ -433,9 +442,11 @@ mod tests {
         );
         cpu.step();
 
-        // This should panic due to overflow as 8000_0000 is the biggest signed
-        // negative 32-bit integer, and subtracting 1 would take us to the
-        // largest signed positive integer.
+        // This should cause an exception due to overflow as 8000_0000 is the
+        // biggest signed negative 32-bit integer, and subtracting 1 would take
+        // us to the largest signed positive integer.
+        assert_eq!(cpu.cop0.cause.exception_code(), ExceptionCause::Overflow);
+        assert_eq!(cpu.pc, 0x8000_0080);
     }
 
     #[test]
@@ -476,7 +487,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_addi_overflow() {
         let mut cpu = test_cpu(
             &[(7, 0x7fff_ffff)],
@@ -487,9 +497,11 @@ mod tests {
         );
         cpu.step();
 
-        // This should panic due to overflow as 7fff_ffff is the largest signed
-        // 32-bit integer, and adding 1 would take us to the largest signed
-        // negative integer.
+        // This should cause an exception due to overflow, as 7fff_ffff is the
+        // largest signed 32-bit integer, and adding 1 would take us to the
+        // largest signed negative integer.
+        assert_eq!(cpu.cop0.cause.exception_code(), ExceptionCause::Overflow);
+        assert_eq!(cpu.pc, 0x8000_0080);
     }
 
     #[test]

@@ -1,10 +1,17 @@
-use super::Cpu;
+use super::{Cpu, control_types::ExceptionCause};
 use crate::bus::AccessSize;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MemoryError {
     AlignmentError,
     BusError,
+}
+
+#[derive(Debug)]
+pub enum AccessType {
+    Read,
+    Write,
+    InstructionFetch,
 }
 
 #[derive(Debug, PartialEq)]
@@ -145,6 +152,29 @@ impl Cpu {
                 0xc | 0xe => (MipsSegment::Kseg2, address),
                 _ => unreachable!(),
             }
+        }
+    }
+
+    /// Triggers the appropriate exception cause for a memory access error.
+    pub fn memory_access_exception(&mut self, error: MemoryError, access_type: AccessType, address: u32) {
+        use AccessType::*;
+        use ExceptionCause::*;
+        use MemoryError::*;
+
+        let cause = match (error, access_type) {
+            (AlignmentError, Read | InstructionFetch) => AddressErrorLoad,
+            (AlignmentError, Write) => AddressErrorStore,
+            (BusError, InstructionFetch) => InstructionBusError,
+            (BusError, Read) => DataBusError,
+            (BusError, Write) => {
+                // Writes to invalid addresses do not cause an exception.
+                return;
+            }
+        };
+
+        self.exception(cause);
+        if error == AlignmentError {
+            self.cop0.bad_vaddr = address;
         }
     }
 }

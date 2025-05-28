@@ -2,8 +2,8 @@ use crate::{
     cpu::Cpu,
     bus::AccessSize,
 };
-use std::collections::HashSet;
 use rustyline::{DefaultEditor, error::ReadlineError};
+use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct Debugger {
