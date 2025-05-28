@@ -62,9 +62,12 @@ impl Debugger {
     pub fn enter(&mut self, cpu: &mut Cpu) -> bool {
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, AccessSize::Word).unwrap();
+        let is_branch_delay_slot = cpu.branch_target.is_some();
+
         println!(
-            "[{:08x}]    {}",
+            "[{:08x}] {}  {}",
             cpu.pc,
+            if is_branch_delay_slot { "D" } else { " " },
             Self::disassemble(Instruction(ins), cpu.pc.wrapping_add(4))
         );
 
