@@ -26,6 +26,7 @@ impl Emulator {
                 self.debugger.enter(&mut self.cpu);
             }
 
+            self.cpu.cop0.set_hardware_interrupt(self.cpu.bus.interrupts.should_interrupt());
             self.cpu.step();
         }
     }

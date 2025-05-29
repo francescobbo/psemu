@@ -1,4 +1,5 @@
 use crate::{
+    interrupts::{INTERRUPTS_BASE, INTERRUPTS_END, InterruptController},
     ram::{self, Ram},
     rom::{self, Rom},
 };
@@ -17,6 +18,8 @@ pub enum AccessSize {
 pub struct Bus {
     pub ram: Ram,
     pub rom: Rom,
+
+    pub interrupts: InterruptController,
 
     /// The memory control registers.
     /// - 0: Exp. 1 address.
@@ -47,7 +50,6 @@ const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f800000, 0x1f8003ff, "Scratchpad"),
     (0x1f801040, 0x1f80104f, "Joypad"),
     (0x1f801050, 0x1f80105f, "Serial"),
-    (0x1f801070, 0x1f801077, "Interrupts"),
     (0x1f801080, 0x1f8010ff, "DMA"),
     (0x1f801100, 0x1f80112f, "Timers"),
     (0x1f801800, 0x1f801803, "CD-ROM"),
@@ -64,6 +66,7 @@ impl Bus {
         Self {
             ram: Ram::new(),
             rom: Rom::new(),
+            interrupts: InterruptController::new(),
             memory_control: [0; 9],
             ram_size: 0,
         }
@@ -98,6 +101,7 @@ impl Bus {
 
                 Ok(self.ram_size)
             }
+            INTERRUPTS_BASE..=INTERRUPTS_END => Ok(self.interrupts.read(address, size)),
             _ => {
                 println!("[Bus] Read error: address {address:#x} out of range");
                 Err(())
@@ -116,6 +120,7 @@ impl Bus {
 
         match address {
             ram::RAM_BASE..=ram::RAM_END => self.ram.write(address, value, size),
+            rom::ROM_BASE..=rom::ROM_END => self.rom.write(address, value, size),
             0x1f80_4000 => print!("{}", value as u8 as char),
             MEMORY_CONTROL_BASE..=MEMORY_CONTROL_END => {
                 assert!(
@@ -134,7 +139,9 @@ impl Bus {
 
                 self.ram_size = value;
             }
-            rom::ROM_BASE..=rom::ROM_END => self.rom.write(address, value, size),
+            INTERRUPTS_BASE..=INTERRUPTS_END => {
+                self.interrupts.write(address, value, size);
+            }
             _ => {
                 println!("[Bus] Write error: {value:x} @ address {address:#x} out of range");
                 return Err(());

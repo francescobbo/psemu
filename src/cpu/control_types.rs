@@ -64,6 +64,12 @@ bitfield! {
     /// has occurred.
     pub u32, from into ExceptionCause, exception_code, set_exception_code: 6, 2;
 
+    // Interrupt pending bits, one for each of the 8 interrupt sources
+    pub interrupt_pending, _: 15, 8;
+
+    // IP2, the only hardware interrupt line, wired to the Interrupt controller
+    pub _, set_ip2: 10;
+
     // Set to 1 when an exception occurs while executing a branch delay slot
     pub branch_delay, set_branch_delay: 31;
 }
@@ -96,6 +102,9 @@ bitfield! {
 
     /// Helper to work on the low 6 bits of the Status register.
     pub low_fields, set_low_fields: 5, 0;
+
+    // Interrupt mask bits, one for each of the 8 interrupt sources
+    pub interrupt_mask, _: 15, 8;
 
     /// Whether the I-Cache is mounted to the memory address space.
     pub isolate_cache, _: 16;
