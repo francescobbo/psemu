@@ -156,7 +156,12 @@ impl Cpu {
     }
 
     /// Triggers the appropriate exception cause for a memory access error.
-    pub fn memory_access_exception(&mut self, error: MemoryError, access_type: AccessType, address: u32) {
+    pub fn memory_access_exception(
+        &mut self,
+        error: MemoryError,
+        access_type: AccessType,
+        address: u32,
+    ) {
         use AccessType::*;
         use ExceptionCause::*;
         use MemoryError::*;

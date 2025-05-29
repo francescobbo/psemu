@@ -154,7 +154,7 @@ impl Debugger {
             }
         }
 
-        return false
+        return false;
     }
 
     /// Parses a string as a hexadecimal number, allowing for an optional "0x" prefix.
@@ -176,9 +176,7 @@ impl Debugger {
 
                 Some(line)
             }
-            Err(ReadlineError::Interrupted) => {
-                None
-            }
+            Err(ReadlineError::Interrupted) => None,
             Err(_) => {
                 println!("Error reading line");
                 Some(String::new())

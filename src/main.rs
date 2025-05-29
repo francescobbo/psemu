@@ -3,6 +3,7 @@ mod cpu;
 mod debug;
 mod emulator;
 mod executable;
+mod interrupts;
 mod ram;
 mod rom;
 

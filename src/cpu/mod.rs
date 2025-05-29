@@ -94,6 +94,11 @@ impl Cpu {
         // Take the load delay, if we have one.
         self.current_load_delay = self.load_delay.take();
 
+        if self.cop0.should_interrupt() {
+            // If the coprocessor requests an interrupt, we handle it
+            self.exception(ExceptionCause::Interrupt);
+        }
+
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
         let instruction = match self.fetch_instruction(self.pc) {

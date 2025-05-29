@@ -29,7 +29,7 @@ impl Emulator {
     pub fn step(&mut self) -> bool {
         if self.debugger.stepping || self.debugger.has_breakpoint(self.cpu.pc) {
             self.debugger.stepping = true;
-            
+
             if self.debugger.enter(&mut self.cpu) {
                 // If the debugger returns true, it means we should quit
                 return true;
@@ -42,6 +42,9 @@ impl Emulator {
             print!("{}", self.cpu.registers[4] as u8 as char);
         }
 
+        self.cpu
+            .cop0
+            .set_hardware_interrupt(self.cpu.bus.interrupts.should_interrupt());
         self.cpu.step();
         false
     }

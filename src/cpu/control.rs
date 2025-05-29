@@ -77,7 +77,13 @@ impl Cop0 {
             9 => self.bdma = value,
             11 => self.bpcm = value,
             12 => self.status.0 = value,
-            13 => self.cause.0 = value,
+            13 => {
+                // Only allow writing to bits 8 and 9 of the Cause Register
+                let old_value = self.cause.0 & !0x0300; // Clear bits 8 and 9
+                let new_value = value & 0x0300; // Keep only bits 8 and 9
+
+                self.cause.0 = old_value | new_value;
+            }
             14 => self.epc = value,
             15 => {}             // Processor ID is read-only, do nothing
             _ => return Err(()), // The register does not exist on the PS1
@@ -99,6 +105,22 @@ impl Cop0 {
                 instruction.cop_instruction()
             );
         }
+    }
+
+    /// Returns true if an interrupt should be handled.
+    pub fn should_interrupt(&self) -> bool {
+        // Check if the IE bit is set in the Status Register
+        if !self.status.interrupt_enable() {
+            return false;
+        }
+
+        // Check if any interrupt is pending and enabled
+        self.cause.interrupt_pending() & self.status.interrupt_mask() != 0
+    }
+
+    /// Sets or clears the hardware interrupt bit (IP2) in the Cause register.
+    pub fn set_hardware_interrupt(&mut self, value: bool) {
+        self.cause.set_ip2(value);
     }
 
     /// Sets up the coprocessor registers to handle an exception, and returns
