@@ -36,6 +36,12 @@ impl Emulator {
             }
         }
 
+        // Detect the putchar system call and print the character to the
+        // console
+        if self.cpu.pc == 0xb0 && self.cpu.registers[9] == 0x3d {
+            print!("{}", self.cpu.registers[4] as u8 as char);
+        }
+
         self.cpu.step();
         false
     }
