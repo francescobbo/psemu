@@ -30,8 +30,9 @@ fn main() {
     let event_loop = EventLoop::with_user_event()
         .build()
         .expect("Failed to create event loop");
+    let event_loop_proxy = event_loop.create_proxy();
 
-    let mut app = app::App::new(MainArguments::parse());
+    let mut app = app::App::new(MainArguments::parse(), event_loop_proxy);
     event_loop
         .run_app(&mut app)
         .expect("Failed to run application");

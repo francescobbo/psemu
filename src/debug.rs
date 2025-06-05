@@ -69,7 +69,6 @@ impl Debugger {
             match cmd {
                 // Quit the debugger
                 "q" | "quit" => {
-                    println!("Quitting...");
                     return true;
                 }
                 // Step the CPU

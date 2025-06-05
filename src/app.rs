@@ -5,11 +5,20 @@ use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
     event::WindowEvent,
-    event_loop::ActiveEventLoop,
+    event_loop::{ActiveEventLoop, EventLoopProxy},
     window::{Window, WindowId},
 };
 
 use crate::{MainArguments, emulator::Emulator, executable::Executable};
+
+#[derive(Debug)]
+pub enum AppEvent {
+    /// Event sent when a new frame is ready to be rendered.
+    FrameReady(Vec<u8>),
+
+    /// Event sent when the emulator has requested to shut down.
+    EmulatorShutdown,
+}
 
 pub struct App {
     window: Option<Arc<Window>>,
@@ -17,7 +26,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(args: MainArguments) -> Self {
+    pub fn new(args: MainArguments, event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
         // Create a new emulator instance
         let mut emulator = Emulator::new();
 
@@ -37,7 +46,7 @@ impl App {
         }
 
         std::thread::spawn(move || {
-            Emulator::run_threaded(emulator);
+            Emulator::run_threaded(emulator, event_loop_proxy);
         });
 
         Self {
@@ -45,37 +54,12 @@ impl App {
             pixels: None,
         }
     }
-
-    pub fn render(&mut self) {
-        if self.pixels.is_none() {
-            // No pixels instance available, we are still initializing
-            return;
-        }
-
-        // Take pixels out of the Option
-        let pixels = self.pixels.as_mut().unwrap();
-
-        // Get the pixel buffer as a mutable array.
-        let frame = pixels.frame_mut();
-
-        // Fill the frame with a color (e.g., blue: 00,00,FF,FF in RGBA)
-        for pixel_chunk in frame.chunks_exact_mut(4) {
-            pixel_chunk[0] = 0x00; // R
-            pixel_chunk[1] = 0x00; // G
-            pixel_chunk[2] = 0xff; // B
-            pixel_chunk[3] = 0xff; // A (opaque)
-        }
-
-        // Now that we have filled the pixel buffer, we ask pixels to present it
-        // to the window.
-        pixels.render().unwrap();
-    }
 }
 
 const INITIAL_WIDTH: u32 = 1024;
 const INITIAL_HEIGHT: u32 = 512;
 
-impl ApplicationHandler for App {
+impl ApplicationHandler<AppEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window_attributes = Window::default_attributes()
             .with_title("PlayStation Emulator")
@@ -110,13 +94,42 @@ impl ApplicationHandler for App {
             WindowEvent::CloseRequested => {
                 event_loop.exit();
             }
-            WindowEvent::RedrawRequested => self.render(),
+            WindowEvent::RedrawRequested => {
+                if let Some(pixels) = &self.pixels {
+                    // Render the pixels to the window
+                    if pixels.render().is_err() {
+                        eprintln!("Failed to render pixels");
+                    }
+                }
+            }
             WindowEvent::Resized(size) => {
                 if let Some(pixels) = &mut self.pixels {
                     pixels.resize_surface(size.width, size.height).unwrap();
                 }
             }
             _ => {}
+        }
+    }
+
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: AppEvent) {
+        match event {
+            AppEvent::FrameReady(frame_data) => {
+                if let Some(pixels) = &mut self.pixels {
+                    // Get the pixel buffer as a mutable array.
+                    let frame = pixels.frame_mut();
+
+                    // Copy the frame data into the pixel buffer.
+                    frame.copy_from_slice(&frame_data);
+                }
+
+                // Request a redraw of the window
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
+            AppEvent::EmulatorShutdown => {
+                event_loop.exit();
+            }
         }
     }
 }
