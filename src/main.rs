@@ -31,19 +31,8 @@ fn main() {
         .build()
         .expect("Failed to create event loop");
 
-    let mut app = app::App::new();
+    let mut app = app::App::new(MainArguments::parse());
     event_loop
         .run_app(&mut app)
         .expect("Failed to run application");
-}
-
-/// Loads a PlayStation BIOS binary
-fn load_bios(path: Option<String>) -> Vec<u8> {
-    match path {
-        Some(path) => {
-            std::fs::read(path.clone()).expect(&format!("Failed to load BIOS file: {}", path))
-        }
-        None => std::fs::read("bios/bios.bin")
-            .expect("Could not load bios/bios.bin. You can specify a different path with --bios"),
-    }
 }

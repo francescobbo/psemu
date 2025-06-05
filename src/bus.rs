@@ -76,7 +76,7 @@ impl Bus {
     pub fn read(&self, address: u32, size: AccessSize) -> Result<u32, ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                println!("[{name}] Reading ({size:?}) at {address:08x}");
+                // println!("[{name}] Reading ({size:?}) at {address:08x}");
                 return Ok(0);
             }
         }

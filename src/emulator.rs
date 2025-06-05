@@ -15,14 +15,46 @@ impl Emulator {
         }
     }
 
+    pub fn run_threaded(mut emulator: Emulator) {
+        loop {
+            // run for approximately 1/60th of a second
+            if emulator.run_for_cycles(677_376) {
+                // shutdown requested by debugger prompt
+                break;
+            }
+
+            // Get VRAM frame data (stub: all white)
+            let frame_data: Vec<u8> = vec![0xff; 1024 * 512 * 4];
+
+            // Send the frame data to the UI thread
+            // if proxy.send_event(AppEvent::FrameReady(frame_data)).is_err() {
+            //     break;
+            // }
+        }
+
+        // let _ = proxy.send_event(AppEvent::EmulatorShutdown);
+    }
+
     /// Run the emulator
     pub fn run(&mut self) {
         loop {
             if self.step() {
-                // If the step returns true, it means we should quit
+                // Exit if the debugger has requested to quit
                 break;
             }
         }
+    }
+
+    /// Run the emulator for a specified number of cycles.
+    pub fn run_for_cycles(&mut self, cycles: u64) -> bool {
+        for _ in 0..cycles {
+            if self.step() {
+                // Exit if the debugger has requested to quit
+                return true;
+            }
+        }
+
+        false
     }
 
     // Perform one step of the emulator cycle.
@@ -32,6 +64,7 @@ impl Emulator {
 
             if self.debugger.enter(&mut self.cpu) {
                 // If the debugger returns true, it means we should quit
+                println!("Quitting...");
                 return true;
             }
         }
