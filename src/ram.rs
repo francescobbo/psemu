@@ -79,3 +79,70 @@ impl Ram {
     //] ram-accessors
 }
 //] ram-new
+//[ ram-tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ram() {
+        let mut ram = Ram::new();
+
+        ram.write(0x0000, 0xff, AccessSize::Byte);
+        assert_eq!(ram.read(0x0000, AccessSize::Byte), 0xff);
+
+        ram.write(0x0002, 0xabcd, AccessSize::HalfWord);
+        assert_eq!(ram.read(0x0002, AccessSize::HalfWord), 0xabcd);
+
+        ram.write(0x0004, 0x12345678, AccessSize::Word);
+        assert_eq!(ram.read(0x0004, AccessSize::Word), 0x12345678);
+
+        assert_eq!(ram.read(0x0005, AccessSize::Byte), 0x56);
+        assert_eq!(ram.read(0x0004, AccessSize::HalfWord), 0x5678);
+        assert_eq!(ram.read(0x0002, AccessSize::Word), 0x5678abcd);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ram_out_of_bounds_read8() {
+        let ram = Ram::new();
+        ram.read(RAM_SIZE as u32, AccessSize::Byte);
+    }
+    //[ !omit
+    #[test]
+    #[should_panic]
+    fn test_ram_out_of_bounds_read16() {
+        let ram = Ram::new();
+        ram.read((RAM_SIZE - 1) as u32, AccessSize::HalfWord);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ram_out_of_bounds_read32() {
+        let ram = Ram::new();
+        ram.read((RAM_SIZE - 3) as u32, AccessSize::Word);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ram_out_of_bounds_write8() {
+        let mut ram = Ram::new();
+        ram.write(RAM_SIZE as u32, 0xff, AccessSize::Byte);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ram_out_of_bounds_write16() {
+        let mut ram = Ram::new();
+        ram.write((RAM_SIZE - 1) as u32, 0xabcd, AccessSize::HalfWord);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_ram_out_of_bounds_write32() {
+        let mut ram = Ram::new();
+        ram.write((RAM_SIZE - 3) as u32, 0x12345678, AccessSize::Word);
+    }
+    //] !omit
+}
+//] ram-tests
