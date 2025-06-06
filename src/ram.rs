@@ -1,3 +1,6 @@
+//[ ram-use-access-size
+use crate::AccessSize;
+//] ram-use-access-size
 //[ ram-new
 pub const RAM_SIZE: usize = 2 * 1024 * 1024;
 
@@ -14,6 +17,23 @@ impl Ram {
         }
     }
 
+    //[ ram-public-api
+    pub fn read(&self, address: u32, size: AccessSize) -> u32 {
+        match size {
+            AccessSize::Byte => self.read8(address) as u32,
+            AccessSize::HalfWord => self.read16(address) as u32,
+            AccessSize::Word => self.read32(address),
+        }
+    }
+
+    pub fn write(&mut self, address: u32, value: u32, size: AccessSize) {
+        match size {
+            AccessSize::Byte => self.write8(address, value as u8),
+            AccessSize::HalfWord => self.write16(address, value as u16),
+            AccessSize::Word => self.write32(address, value),
+        }
+    }
+    //] ram-public-api
     //[ ram-accessors
     fn read8(&self, address: u32) -> u8 {
         self.data[address as usize]
