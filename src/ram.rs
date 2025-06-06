@@ -20,11 +20,21 @@ impl Ram {
     }
 
     fn read16(&self, address: u32) -> u16 {
-        todo!("Implement read16");
+        let bytes =
+            [self.data[address as usize], self.data[address as usize + 1]];
+
+        u16::from_le_bytes(bytes)
     }
 
     fn read32(&self, address: u32) -> u32 {
-        todo!("Implement read32");
+        let bytes = [
+            self.data[address as usize],
+            self.data[address as usize + 1],
+            self.data[address as usize + 2],
+            self.data[address as usize + 3],
+        ];
+
+        u32::from_le_bytes(bytes)
     }
 
     fn write8(&mut self, address: u32, value: u8) {
@@ -32,11 +42,19 @@ impl Ram {
     }
 
     fn write16(&mut self, address: u32, value: u16) {
-        todo!("Implement write16");
+        let bytes = value.to_le_bytes();
+
+        self.data[address as usize] = bytes[0];
+        self.data[address as usize + 1] = bytes[1];
     }
 
     fn write32(&mut self, address: u32, value: u32) {
-        todo!("Implement write32");
+        let bytes = value.to_le_bytes();
+
+        self.data[address as usize] = bytes[0];
+        self.data[address as usize + 1] = bytes[1];
+        self.data[address as usize + 2] = bytes[2];
+        self.data[address as usize + 3] = bytes[3];
     }
     //] ram-accessors
 }
