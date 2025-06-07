@@ -1,6 +1,10 @@
 //[ mod-arith
 mod arith;
 //] mod-arith
+//[ mod-test-utils
+#[cfg(test)]
+mod test_utils;
+//] mod-test-utils
 //[ cpu-new
 use crate::ram::Ram;
 
