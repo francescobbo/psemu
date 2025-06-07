@@ -9,8 +9,18 @@ mod ram;
 use cpu::{AccessSize, Cpu};
 //] mod-cpu
 
-//[ !hello-world
+//[ main
 fn main() {
-    println!("Hello, world!");
+    let mut cpu = Cpu::new();
+
+    // Write some invalid instructions to the RAM, through the CPU's memory
+    // interface
+    cpu.write_memory(0, 0x12345678, AccessSize::Word);
+    cpu.write_memory(4, 0x87654321, AccessSize::Word);
+    cpu.write_memory(8, 0xdeadbeef, AccessSize::Word);
+
+    for _ in 0..3 {
+        cpu.step(); // Execute the instructions
+    }
 }
-//] !hello-world
+//] main
