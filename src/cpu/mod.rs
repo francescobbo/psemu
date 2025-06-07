@@ -42,9 +42,24 @@ impl Cpu {
         self.read_memory(address, AccessSize::Word)
     }
 
+    //[ cpu-execute
     fn execute(&mut self, instruction: u32) {
-        println!("Executing instruction: {instruction:x}");
+        // Extract the 6-bit opcode
+        let opcode = instruction >> 26;
+
+        match opcode {
+            0x09 => self.ins_addiu(instruction),
+            _ => {
+                // For any other opcode, we'll panic for now.
+                // Later, this will cause an "Illegal Instruction" exception.
+                panic!(
+                    "Unimplemented opcode: {opcode:02x} @ {:08x}",
+                    self.pc - 4
+                );
+            }
+        }
     }
+    //] cpu-execute
 
     pub fn read_memory(
         &self,
