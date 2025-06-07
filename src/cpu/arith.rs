@@ -9,7 +9,15 @@ impl Cpu {
     ///
     /// No overflow exception
     pub(super) fn ins_addiu(&mut self, instruction: u32) {
-        todo!("Implement ADDIU instruction");
+        let rs_idx = ((instruction >> 21) & 0x1f) as usize;
+        let rt_idx = ((instruction >> 16) & 0x1f) as usize;
+        let uimm16 = instruction as i16 as u32;
+
+        let result = self.registers[rs_idx].wrapping_add(uimm16);
+
+        if rt_idx != 0 {
+            self.registers[rt_idx] = result;
+        }
     }
     //] arith-ins-addiu
 }
