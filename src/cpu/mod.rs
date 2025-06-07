@@ -1,3 +1,6 @@
+//[ mod-arith
+mod arith;
+//] mod-arith
 //[ cpu-new
 use crate::ram::Ram;
 
