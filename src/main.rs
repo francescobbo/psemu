@@ -1,16 +1,15 @@
+//[ mod-cpu
+mod cpu;
+//[ !omit
 //[ mod-ram
 mod ram;
 //] mod-ram
+//] !omit
+
+use cpu::{AccessSize, Cpu};
+//] mod-cpu
+
 //[ !hello-world
-
-//[ define-access-size
-pub enum AccessSize {
-    Byte,
-    HalfWord,
-    Word,
-}
-//] define-access-size
-
 fn main() {
     println!("Hello, world!");
 }
