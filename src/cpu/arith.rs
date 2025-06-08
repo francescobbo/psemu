@@ -1,5 +1,5 @@
 //[ arith-new-file
-use super::Cpu;
+use super::{Cpu, Instruction};
 
 impl Cpu {
     //[ arith-ins-addiu
@@ -8,16 +8,11 @@ impl Cpu {
     /// GPR[rt] = GPR[rs] + sign_extend(immediate)
     ///
     /// No overflow exception
-    pub(super) fn ins_addiu(&mut self, instruction: u32) {
-        let rs_idx = ((instruction >> 21) & 0x1f) as usize;
-        let rt_idx = ((instruction >> 16) & 0x1f) as usize;
-        let uimm16 = instruction as i16 as u32;
+    pub(super) fn ins_addiu(&mut self, instr: Instruction) {
+        let immediate = instr.simm16() as u32;
+        let result = self.get_rs(instr).wrapping_add(immediate);
 
-        let result = self.registers[rs_idx].wrapping_add(uimm16);
-
-        if rt_idx != 0 {
-            self.registers[rt_idx] = result;
-        }
+        self.write_reg(instr.rt(), result);
     }
     //] arith-ins-addiu
 }

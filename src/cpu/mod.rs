@@ -54,14 +54,13 @@ impl Cpu {
     }
 
     //[ fetch-execute
-    fn fetch_instruction(&self, address: u32) -> Result<u32, ()> {
-        self.read_memory(address, AccessSize::Word)
+    fn fetch_instruction(&self, address: u32) -> Result<Instruction, ()> {
+        let value = self.read_memory(address, AccessSize::Word)?;
+        Ok(Instruction(value))
     }
 
-    fn execute(&mut self, instruction: u32) {
-        // Extract the 6-bit opcode
-        let opcode = instruction >> 26;
-
+    fn execute(&mut self, instruction: Instruction) {
+        let opcode = instruction.opcode();
         match opcode {
             0x09 => self.ins_addiu(instruction),
             //] fetch-execute
