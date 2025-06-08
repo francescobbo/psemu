@@ -19,5 +19,11 @@ bitfield! {
     /// The immediate field (16 bits) is a signed value used in some
     /// instructions, signed-extended to 32 bits
     pub i16, into i32, simm16, _: 15, 0;
+    //[ ins-imm16
+
+    /// The immediate field (16 bits) is an unsigned value used in some
+    /// instructions, zero-extended to 32 bits
+    pub imm16, _: 15, 0;
+    //] ins-imm16
 }
 //] new-file

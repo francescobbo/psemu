@@ -2,6 +2,22 @@
 use crate::cpu::{Cpu, Instruction};
 
 impl Cpu {
+    //[ slti-stubs
+    /// 0A - SLTI - I-type
+    /// SLTI rt, rs, immediate
+    /// GPR[rt] = (signed(GPR[rs]) < sign_extend(immediate)) ? 1 : 0
+    pub fn ins_slti(&mut self, instruction: Instruction) {
+        // Your implementation here
+    }
+
+    /// 0B - SLTIU - I-type
+    /// SLTIU rt, rs, immediate
+    /// GPR[rt] = (GPR[rs] < unsigned(sign_extend(immediate))) ? 1 : 0
+    pub fn ins_sltiu(&mut self, instruction: Instruction) {
+        // Your implementation here
+    }
+    //] slti-stubs
+    
     /// 0C - ANDI - I-Type
     /// ANDI rt, rs, immediate
     /// GPR[rt] = GPR[rs] & immediate
