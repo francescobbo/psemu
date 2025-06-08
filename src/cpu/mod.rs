@@ -61,7 +61,14 @@ impl Cpu {
         let opcode = instruction.opcode();
         //[ ins-opcodes
         match opcode {
+            0x08 => self.ins_addi(instruction),
             0x09 => self.ins_addiu(instruction),
+            0x0a => self.ins_slti(instruction),
+            0x0b => self.ins_sltiu(instruction),
+            0x0c => self.ins_andi(instruction),
+            0x0d => self.ins_ori(instruction),
+            0x0e => self.ins_xori(instruction),
+            0x0f => self.ins_lui(instruction),
             0x23 => self.ins_lw(instruction),
             0x2b => self.ins_sw(instruction),
             _ => {
