@@ -3,6 +3,9 @@ mod arith;
 //] mod-arith
 //[ mod-instruction
 mod instruction;
+//[ mod-load-store
+mod load_store;
+//] mod-load-store
 //[ !omit
 //[ mod-test-utils
 #[cfg(test)]
@@ -63,6 +66,8 @@ impl Cpu {
         //[ ins-opcodes
         match opcode {
             0x09 => self.ins_addiu(instruction),
+            0x23 => self.ins_lw(instruction), 
+            0x2b => self.ins_sw(instruction), 
             _ => {
                 //] ins-opcodes
                 // For any other opcode, we'll panic for now.
