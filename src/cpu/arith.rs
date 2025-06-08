@@ -39,6 +39,48 @@ impl Cpu {
 mod tests {
     use crate::cpu::test_utils::*;
 
+    //[ !omit
+    #[test]
+    fn test_addi() {
+        let mut cpu = test_cpu(
+            &[(7, 1)],
+            &[
+                // ADDI r8, r7, 0
+                i_type(0x08, 8, 7, 0),
+                // ADDI r9, r7, 1234
+                i_type(0x08, 9, 7, 1234),
+                // ADDI r10, r7, 15
+                i_type(0x08, 0, 7, 0xffff),
+                // ADDI r0, r7, 15
+                i_type(0x08, 0, 7, 15),
+            ],
+        );
+        cpu_steps(&mut cpu, 3);
+
+        assert_eq!(cpu.registers[8], 1);
+        assert_eq!(cpu.registers[9], 1 + 1234);
+        assert_eq!(cpu.registers[10], 0); // subtraction does not overflow
+        assert_eq!(cpu.registers[0], 0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_addi_overflow() {
+        let mut cpu = test_cpu(
+            &[(7, 0x7fff_ffff)],
+            &[
+                // ADDI r8, r7, 1
+                i_type(0x08, 8, 7, 1),
+            ],
+        );
+        cpu.step();
+
+        // This should panic due to overflow as 7fff_ffff is the largest signed
+        // 32-bit integer, and adding 1 would take us to the largest signed
+        // negative integer.
+    }
+    //] !omit
+
     #[test]
     fn test_addiu() {
         let mut cpu = test_cpu(
