@@ -53,7 +53,6 @@ impl Cpu {
         self.execute(instruction);
     }
 
-    //[ fetch-execute
     fn fetch_instruction(&self, address: u32) -> Result<Instruction, ()> {
         let value = self.read_memory(address, AccessSize::Word)?;
         Ok(Instruction(value))
@@ -61,10 +60,11 @@ impl Cpu {
 
     fn execute(&mut self, instruction: Instruction) {
         let opcode = instruction.opcode();
+        //[ ins-opcodes
         match opcode {
             0x09 => self.ins_addiu(instruction),
-            //] fetch-execute
             _ => {
+                //] ins-opcodes
                 // For any other opcode, we'll panic for now.
                 // Later, this will cause an "Illegal Instruction" exception.
                 panic!(
@@ -99,6 +99,20 @@ impl Cpu {
         self.registers[instruction.rs()]
     }
 
+    //[ helpers-rs-target
+    /// Get the value of the GPR register pointed to by rt
+    fn get_rt(&self, instr: Instruction) -> u32 {
+        self.registers[instr.rt()]
+    }
+
+    /// Calculate the effective address for a load/store instruction
+    fn target_address(&self, instr: Instruction) -> u32 {
+        let offset = instr.simm16() as u32;
+        let rs_value = self.get_rs(instr);
+        rs_value.wrapping_add(offset)
+    }
+    //] helpers-rs-target
+
     /// Write a value to a GPR register
     fn write_reg(&mut self, index: usize, value: u32) {
         // The zero register (R0) is always 0, so we don't allow writing to it
@@ -107,5 +121,11 @@ impl Cpu {
         }
     }
     //] ins-helpers
+    //[ cpu-exception
+    /// Mock implementation of an exception handler
+    fn exception(&self, code: &str) {
+        panic!("Exception raised: {code}");
+    }
+    //] cpu-exception
 }
 //] cpu-new
