@@ -1,12 +1,20 @@
 //[ mod-arith
 mod arith;
 //] mod-arith
+//[ mod-instruction
+mod instruction;
+//[ !omit
 //[ mod-test-utils
 #[cfg(test)]
 mod test_utils;
 //] mod-test-utils
-//[ cpu-new
+//] !omit
+
+//[ !omit
 use crate::ram::Ram;
+//] !omit
+use instruction::Instruction;
+//] mod-instruction
 
 pub enum AccessSize {
     Byte,
@@ -45,17 +53,18 @@ impl Cpu {
         self.execute(instruction);
     }
 
+    //[ fetch-execute
     fn fetch_instruction(&self, address: u32) -> Result<u32, ()> {
         self.read_memory(address, AccessSize::Word)
     }
 
-    //[ cpu-execute
     fn execute(&mut self, instruction: u32) {
         // Extract the 6-bit opcode
         let opcode = instruction >> 26;
 
         match opcode {
             0x09 => self.ins_addiu(instruction),
+            //] fetch-execute
             _ => {
                 // For any other opcode, we'll panic for now.
                 // Later, this will cause an "Illegal Instruction" exception.
@@ -66,7 +75,6 @@ impl Cpu {
             }
         }
     }
-    //] cpu-execute
 
     pub fn read_memory(
         &self,
@@ -86,5 +94,19 @@ impl Cpu {
         Ok(())
     }
     //] cpu-stubs
+    //[ ins-helpers
+    /// Get the value of the GPR register pointed to by rs
+    fn get_rs(&self, instruction: Instruction) -> u32 {
+        self.registers[instruction.rs()]
+    }
+
+    /// Write a value to a GPR register
+    fn write_reg(&mut self, index: usize, value: u32) {
+        // The zero register (R0) is always 0, so we don't allow writing to it
+        if index != 0 {
+            self.registers[index] = value;
+        }
+    }
+    //] ins-helpers
 }
 //] cpu-new

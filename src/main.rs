@@ -1,13 +1,7 @@
-//[ mod-cpu
 mod cpu;
-//[ !omit
-//[ mod-ram
 mod ram;
-//] mod-ram
-//] !omit
 
 use cpu::{AccessSize, Cpu};
-//] mod-cpu
 
 //[ main
 fn main() {
