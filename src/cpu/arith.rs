@@ -2,6 +2,23 @@
 use super::{Cpu, Instruction};
 
 impl Cpu {
+    //[ arith-ins-addi
+    /// 08 - ADDI - I-type
+    /// ADDI rt, rs, immediate
+    /// GPR[rt] = signed(GPR[rs]) + sign_extend(immediate)
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_addi(&mut self, instr: Instruction) {
+        let value = self.get_rs(instr) as i32;
+        let immediate = instr.simm16();
+
+        match value.checked_add(immediate) {
+            Some(result) => self.write_reg(instr.rt(), result as u32),
+            None => self.exception("Overflow"),
+        }
+    }
+    //] arith-ins-addi
+
     //[ arith-ins-addiu
     /// 09 - ADDIU - I-Type
     /// ADDIU rt, rs, immediate

@@ -1,23 +1,18 @@
-//[ mod-arith
 mod arith;
-//] mod-arith
-//[ mod-instruction
 mod instruction;
 //[ mod-load-store
 mod load_store;
 //] mod-load-store
-//[ !omit
-//[ mod-test-utils
+//[ mod-logic
+mod logic;
+//] mod-logic
 #[cfg(test)]
 mod test_utils;
-//] mod-test-utils
-//] !omit
 
 //[ !omit
 use crate::ram::Ram;
 //] !omit
 use instruction::Instruction;
-//] mod-instruction
 
 pub enum AccessSize {
     Byte,
@@ -62,6 +57,7 @@ impl Cpu {
     }
 
     fn execute(&mut self, instruction: Instruction) {
+        //[ ins-opcodes
         let opcode = instruction.opcode();
         //[ ins-opcodes
         match opcode {
@@ -98,6 +94,12 @@ impl Cpu {
         Ok(())
     }
     //] cpu-stubs
+    //[ cpu-exception
+    /// Mock implementation of an exception handler
+    fn exception(&self, code: &str) {
+        panic!("Exception raised: {code}");
+    }
+    //] cpu-exception
     //[ ins-helpers
     /// Get the value of the GPR register pointed to by rs
     fn get_rs(&self, instruction: Instruction) -> u32 {
@@ -126,11 +128,5 @@ impl Cpu {
         }
     }
     //] ins-helpers
-    //[ cpu-exception
-    /// Mock implementation of an exception handler
-    fn exception(&self, code: &str) {
-        panic!("Exception raised: {code}");
-    }
-    //] cpu-exception
 }
 //] cpu-new

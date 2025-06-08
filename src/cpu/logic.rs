@@ -17,7 +17,7 @@ impl Cpu {
         // Your implementation here
     }
     //] slti-stubs
-    
+
     /// 0C - ANDI - I-Type
     /// ANDI rt, rs, immediate
     /// GPR[rt] = GPR[rs] & immediate
@@ -38,5 +38,14 @@ impl Cpu {
     pub(super) fn ins_xori(&mut self, instr: Instruction) {
         // Your implementation here
     }
+
+    //[ logic-lui
+    /// 0F - LUI - I-Type
+    /// LUI rt, immediate
+    /// GPR[rt] = immediate << 16
+    pub(super) fn ins_lui(&mut self, instr: Instruction) {
+        // Your implementation here
+    }
+    //] logic-lui
 }
 //] new-logic
