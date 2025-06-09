@@ -60,6 +60,28 @@ impl Cpu {
         let opcode = instruction.opcode();
         //[ ins-opcodes
         match opcode {
+            0x00 => match instruction.funct() {
+                0x00 => self.ins_sll(instruction),
+                0x02 => self.ins_srl(instruction),
+                0x03 => self.ins_sra(instruction),
+                0x04 => self.ins_sllv(instruction),
+                0x06 => self.ins_srlv(instruction),
+                0x07 => self.ins_srav(instruction),
+                0x20 => self.ins_add(instruction),
+                0x21 => self.ins_addu(instruction),
+                0x22 => self.ins_sub(instruction),
+                0x23 => self.ins_subu(instruction),
+                0x24 => self.ins_and(instruction),
+                0x25 => self.ins_or(instruction),
+                0x26 => self.ins_xor(instruction),
+                0x27 => self.ins_nor(instruction),
+                0x2a => self.ins_slt(instruction),
+                0x2b => self.ins_sltu(instruction),
+                _ => self.exception(&format!(
+                    "Unimplemented funct {:02x}",
+                    instruction.funct()
+                )),
+            },
             0x08 => self.ins_addi(instruction),
             //] ins-opcodes
             0x09 => self.ins_addiu(instruction),
@@ -78,14 +100,7 @@ impl Cpu {
             0x29 => self.ins_sh(instruction),
             //[ ins-unimplemented
             0x2b => self.ins_sw(instruction),
-            _ => {
-                // For any other opcode, we'll panic for now.
-                // Later, this will cause an "Illegal Instruction" exception.
-                panic!(
-                    "Unimplemented opcode: {opcode:02x} @ {:08x}",
-                    self.pc - 4
-                );
-            }
+            _ => self.exception(&format!("Unimplemented opcode {opcode:02x}")),
         }
         //] ins-unimplemented
     }
