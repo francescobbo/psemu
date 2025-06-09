@@ -54,19 +54,32 @@ impl Cpu {
         // Your implementation here
     }
     //] ins-lh-lw-lbu-lhu-stub
+
     //[ sb-sh-stub
     /// 28 - SB - I-type
     /// SB rt, offset(rs)
     /// Memory[rs + sign_extend(offset), 8-bit] = GPR[rt] & 0xff
     pub(super) fn ins_sb(&mut self, instr: Instruction) {
-        // Your implementation here
+        let address = self.target_address(instr);
+        let value = self.get_rt(instr);
+        if self.write_memory(address, value, AccessSize::Byte).is_err() {
+            self.exception("Memory write error");
+        }
     }
 
     /// 29 - SH - I-type
     /// SH rt, offset(rs)
     /// Memory[rs + sign_extend(offset), 16-bit] = GPR[rt] & 0xffff
     pub(super) fn ins_sh(&mut self, instr: Instruction) {
-        // Your implementation here
+        let address = self.target_address(instr);
+        let value = self.get_rt(instr);
+
+        if self
+            .write_memory(address, value, AccessSize::HalfWord)
+            .is_err()
+        {
+            self.exception("Memory write error");
+        }
     }
     //] sb-sh-stub
     //] load-store-impl
