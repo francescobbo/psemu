@@ -58,15 +58,16 @@ impl Cpu {
 
     fn execute(&mut self, instruction: Instruction) {
         let opcode = instruction.opcode();
+        //[ ins-opcodes
         match opcode {
             0x08 => self.ins_addi(instruction),
+            //] ins-opcodes
             0x09 => self.ins_addiu(instruction),
             0x0a => self.ins_slti(instruction),
             0x0b => self.ins_sltiu(instruction),
             0x0c => self.ins_andi(instruction),
             0x0d => self.ins_ori(instruction),
             0x0e => self.ins_xori(instruction),
-            //[ ins-opcodes
             0x0f => self.ins_lui(instruction),
             0x20 => self.ins_lb(instruction),
             0x21 => self.ins_lh(instruction),
@@ -75,9 +76,9 @@ impl Cpu {
             0x25 => self.ins_lhu(instruction),
             0x28 => self.ins_sb(instruction),
             0x29 => self.ins_sh(instruction),
+            //[ ins-unimplemented
             0x2b => self.ins_sw(instruction),
             _ => {
-                //] ins-opcodes
                 // For any other opcode, we'll panic for now.
                 // Later, this will cause an "Illegal Instruction" exception.
                 panic!(
@@ -86,6 +87,7 @@ impl Cpu {
                 );
             }
         }
+        //] ins-unimplemented
     }
 
     pub fn read_memory(

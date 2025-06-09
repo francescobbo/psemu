@@ -1,4 +1,3 @@
-//[ new-file
 use bitfield::bitfield;
 
 bitfield! {
@@ -19,11 +18,19 @@ bitfield! {
     /// The immediate field (16 bits) is a signed value used in some
     /// instructions, signed-extended to 32 bits
     pub i16, into i32, simm16, _: 15, 0;
-    //[ ins-imm16
 
     /// The immediate field (16 bits) is an unsigned value used in some
     /// instructions, zero-extended to 32 bits
     pub imm16, _: 15, 0;
-    //] ins-imm16
+    //[ ins-r-type
+
+    /// The RD field (5 bits) specifies the destination register index
+    pub u8, into usize, rd, _: 15, 11;
+
+    /// The SHAMT field (5 bits) specifies the amount for shift operations
+    pub u8, into usize, shamt, _: 10, 6;
+
+    /// The funct field (6 bits) is a secondary opcode
+    pub funct, _: 5, 0;
+    //] ins-r-type
 }
-//] new-file
