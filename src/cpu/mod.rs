@@ -45,6 +45,12 @@ impl Cpu {
         // Fetch the instruction at the current program counter (PC).
         let instruction = self.fetch_instruction(self.pc).unwrap();
 
+        println!(
+            "[{:08x}] {}",
+            self.pc,
+            psdisasm::Disasm::new().disasm(instruction.0, self.pc)
+        );
+
         // Update the program counter to point to the next instruction.
         self.pc += 4;
         //] ins-disasm
