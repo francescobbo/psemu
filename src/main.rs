@@ -1,10 +1,14 @@
 mod cpu;
 //[ mod-debugger
 mod debugger;
-//] mod-debugger
+//[ !omit
 mod ram;
 
 use cpu::{AccessSize, Cpu};
+//] !omit
+
+use debugger::Debugger;
+//] mod-debugger
 
 //[ main
 fn main() {
@@ -24,8 +28,9 @@ fn main() {
         cpu.step();
     }
 
-    // Read the result from memory, at 0x104
-    let result = cpu.read_memory(0x104, AccessSize::Word).unwrap();
-    println!("Result: {}", result);
+    //[ dbg-example
+    let debugger = Debugger::default();
+    debugger.print_registers(&cpu);
+    //] dbg-example
 }
 //] main
