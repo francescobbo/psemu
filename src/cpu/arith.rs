@@ -9,7 +9,16 @@ impl Cpu {
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
     pub(super) fn ins_add(&mut self, instruction: Instruction) {
-        // Your code here
+        let rs = self.get_rs(instruction) as i32;
+        let rt = self.get_rt(instruction) as i32;
+
+        match rs.checked_add(rt) {
+            // If the addition was successful, write the result to the
+            // destination register
+            Some(result) => self.write_reg(instruction.rd(), result as u32),
+            // This means overflow occurred
+            None => self.exception("Overflow"),
+        }
     }
 
     /// 00.21 - ADDU - R-Type
@@ -18,7 +27,11 @@ impl Cpu {
     ///
     /// No overflow exception
     pub(super) fn ins_addu(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_add(self.get_rt(instruction)),
+        );
     }
 
     /// 00.22 - SUB - R-Type
@@ -27,7 +40,13 @@ impl Cpu {
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
     pub(super) fn ins_sub(&mut self, instruction: Instruction) {
-        // Your code here
+        let rs = self.get_rs(instruction) as i32;
+        let rt = self.get_rt(instruction) as i32;
+
+        match rs.checked_sub(rt) {
+            Some(result) => self.write_reg(instruction.rd(), result as u32),
+            None => self.exception("Overflow"),
+        }
     }
 
     /// 00.23 - SUBU - R-Type
@@ -36,7 +55,11 @@ impl Cpu {
     ///
     /// No overflow exception
     pub(super) fn ins_subu(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction)
+                .wrapping_sub(self.get_rt(instruction)),
+        );
     }
     //] ins-r-type-arith
 
@@ -236,7 +259,6 @@ mod tests {
         // 32-bit integer, and adding 1 would take us to the largest signed
         // negative integer.
     }
-    //] !omit
 
     #[test]
     fn test_addiu() {
@@ -270,3 +292,4 @@ mod tests {
         assert_eq!(cpu.registers[0], 0);
     }
 }
+//] !omit

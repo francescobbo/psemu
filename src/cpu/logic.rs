@@ -7,42 +7,59 @@ impl Cpu {
     /// SLL rd, rt, shamt
     /// GPR[rd] = GPR[rt] << shamt
     pub(super) fn ins_sll(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rt(instruction) << instruction.shamt(),
+        );
     }
 
     /// 00.02 - SRL - R-Type
     /// SRL rd, rt, shamt
     /// GPR[rd] = GPR[rt] >> shamt
     pub(super) fn ins_srl(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rt(instruction) >> instruction.shamt(),
+        );
     }
 
     /// 00.03 - SRA - R-Type
     /// SRA rd, rt, shamt
     /// GPR[rd] = signed(GPR[rt]) >> shamt
     pub(super) fn ins_sra(&mut self, instruction: Instruction) {
-        // Your code here
+        let value = self.get_rt(instruction) as i32;
+        self.write_reg(instruction.rd(), (value >> instruction.shamt()) as u32);
     }
 
     /// 00.04 - SLLV - R-Type
     /// SLLV rd, rt, rs
     /// GPR[rd] = GPR[rt] << (GPR[rs] & 0x1f)
     pub(super) fn ins_sllv(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rt(instruction) << (self.get_rs(instruction) & 0x1f),
+        );
     }
 
     /// 00.06 - SRLV - R-Type
     /// SRLV rd, rt, rs
     /// GPR[rd] = GPR[rt] >> (GPR[rs] & 0x1f)
     pub(super) fn ins_srlv(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rt(instruction) >> (self.get_rs(instruction) & 0x1f),
+        );
     }
 
     /// 00.07 - SRAV - R-Type
     /// SRAV rd, rt, rs
     /// GPR[rd] = signed(GPR[rt]) >> (GPR[rs] & 0x1f)
     pub(super) fn ins_srav(&mut self, instruction: Instruction) {
-        // Your code here
+        let value = self.get_rt(instruction) as i32;
+        self.write_reg(
+            instruction.rd(),
+            (value >> (self.get_rs(instruction) & 0x1f)) as u32,
+        );
     }
     //] ins-r-type-shifts
     //[ ins-r-type-logic
@@ -50,42 +67,62 @@ impl Cpu {
     /// AND rd, rs, rt
     /// GPR[rd] = GPR[rs] & GPR[rt]
     pub(super) fn ins_and(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction) & self.get_rt(instruction),
+        );
     }
 
     /// 00.25 - OR - R-Type
     /// OR rd, rs, rt
     /// GPR[rd] = GPR[rs] | GPR[rt]
     pub(super) fn ins_or(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction) | self.get_rt(instruction),
+        );
     }
 
     /// 00.26 - XOR - R-Type
     /// XOR rd, rs, rt
     /// GPR[rd] = GPR[rs] ^ GPR[rt]
     pub(super) fn ins_xor(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            self.get_rs(instruction) ^ self.get_rt(instruction),
+        );
     }
 
     /// 00.27 - NOR - R-Type
     /// NOR rd, rs, rt
     /// GPR[rd] = ~(GPR[rs] | GPR[rt])
     pub(super) fn ins_nor(&mut self, instruction: Instruction) {
-        // Your code here
+        self.write_reg(
+            instruction.rd(),
+            !(self.get_rs(instruction) | self.get_rt(instruction)),
+        );
     }
 
     /// 00.2A - SLT - R-Type
     /// SLT rd, rs, rt
     /// GPR[rd] = (signed(GPR[rs]) < signed(GPR[rt])) ? 1 : 0
     pub(super) fn ins_slt(&mut self, instruction: Instruction) {
-        // Your code here
+        let rs_value = self.get_rs(instruction) as i32;
+        let rt_value = self.get_rt(instruction) as i32;
+        let result = (rs_value < rt_value) as u32;
+
+        self.write_reg(instruction.rd(), result);
     }
 
     /// 00.2B - SLTU - R-Type
     /// SLTU rd, rs, rt
     /// GPR[rd] = (GPR[rs] < GPR[rt]) ? 1 : 0
     pub(super) fn ins_sltu(&mut self, instruction: Instruction) {
-        // Your code here
+        let rs_value = self.get_rs(instruction);
+        let rt_value = self.get_rt(instruction);
+        let result = (rs_value < rt_value) as u32;
+
+        self.write_reg(instruction.rd(), result);
     }
     //] ins-r-type-logic
 

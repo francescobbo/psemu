@@ -41,11 +41,13 @@ impl Cpu {
 
     //[ cpu-stubs
     pub fn step(&mut self) {
+        //[ ins-disasm
         // Fetch the instruction at the current program counter (PC).
         let instruction = self.fetch_instruction(self.pc).unwrap();
 
         // Update the program counter to point to the next instruction.
         self.pc += 4;
+        //] ins-disasm
 
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);
