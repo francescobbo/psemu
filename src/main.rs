@@ -1,4 +1,7 @@
 mod cpu;
+//[ mod-debugger
+mod debugger;
+//] mod-debugger
 mod ram;
 
 use cpu::{AccessSize, Cpu};
