@@ -53,9 +53,11 @@ impl Debugger {
     //[ format-value
     fn format_value(&self, value: u32, mode: DisplayMode) -> String {
         match mode {
+            DisplayMode::Binary => format!("{value:032b}"),
+            DisplayMode::Octal => format!("{value:o}"),
             DisplayMode::Decimal => value.to_string(),
             DisplayMode::Hexadecimal => format!("{value:08x}"),
-            _ => unimplemented!("Unimplemented display mode: {:?}", mode),
+            DisplayMode::Character => format!("{}", value as u8 as char),
         }
     }
     //] format-value
