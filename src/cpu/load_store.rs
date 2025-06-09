@@ -25,7 +25,16 @@ impl Cpu {
     /// LH rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + sign_extend(offset), 16-bit])
     pub(super) fn ins_lh(&mut self, instr: Instruction) {
-        // Your implementation here
+        let address = self.target_address(instr);
+
+        match self.read_memory(address, AccessSize::HalfWord) {
+            Ok(value) => {
+                // Sign-extend the half-word value
+                let value = value as i16 as u32;
+                self.write_reg(instr.rt(), value);
+            }
+            Err(_) => self.exception("Memory read error"),
+        }
     }
 
     /// 23 - LW - I-type
@@ -44,14 +53,24 @@ impl Cpu {
     /// LBU rt, offset(rs)
     /// GPR[rt] = Memory[rs + sign_extend(offset), 8-bit]
     pub(super) fn ins_lbu(&mut self, instr: Instruction) {
-        // Your implementation here
+        let address = self.target_address(instr);
+
+        match self.read_memory(address, AccessSize::Byte) {
+            Ok(value) => self.write_reg(instr.rt(), value),
+            Err(_) => self.exception("Memory read error"),
+        }
     }
 
     /// 25 - LHU - I-type
     /// LHU rt, offset(rs)
     /// GPR[rt] = Memory[rs + sign_extend(offset), 16-bit]
     pub(super) fn ins_lhu(&mut self, instr: Instruction) {
-        // Your implementation here
+        let address = self.target_address(instr);
+
+        match self.read_memory(address, AccessSize::HalfWord) {
+            Ok(value) => self.write_reg(instr.rt(), value),
+            Err(_) => self.exception("Memory read error"),
+        }
     }
     //] ins-lh-lw-lbu-lhu-stub
 
