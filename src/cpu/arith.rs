@@ -2,6 +2,44 @@
 use super::{Cpu, Instruction};
 
 impl Cpu {
+    //[ ins-r-type-arith
+    /// 00.20 - ADD - R-Type
+    /// ADD rd, rs, rt
+    /// GPR[rd] = signed(GPR[rs]) + signed(GPR[rt])
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_add(&mut self, instruction: Instruction) {
+        // Your code here
+    }
+
+    /// 00.21 - ADDU - R-Type
+    /// ADDU rd, rs, rt
+    /// GPR[rd] = GPR[rs] + GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_addu(&mut self, instruction: Instruction) {
+        // Your code here
+    }
+
+    /// 00.22 - SUB - R-Type
+    /// SUB rd, rs, rt
+    /// GPR[rd] = signed(GPR[rs]) - signed(GPR[rt])
+    ///
+    /// Causes overflow exception if the result is not representable in 32 bits
+    pub(super) fn ins_sub(&mut self, instruction: Instruction) {
+        // Your code here
+    }
+
+    /// 00.23 - SUBU - R-Type
+    /// SUBU rd, rs, rt
+    /// GPR[rd] = GPR[rs] - GPR[rt]
+    ///
+    /// No overflow exception
+    pub(super) fn ins_subu(&mut self, instruction: Instruction) {
+        // Your code here
+    }
+    //] ins-r-type-arith
+
     //[ arith-ins-addi
     /// 08 - ADDI - I-type
     /// ADDI rt, rs, immediate
