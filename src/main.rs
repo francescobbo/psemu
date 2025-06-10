@@ -13,14 +13,15 @@ use cpu::{AccessSize, Cpu};
 fn main() {
     let mut cpu = Cpu::new();
 
-    // Write some invalid instructions to the RAM, through the CPU's memory
-    // interface
-    cpu.write_memory(0, 0x12345678, AccessSize::Word);
-    cpu.write_memory(4, 0x87654321, AccessSize::Word);
-    cpu.write_memory(8, 0xdeadbeef, AccessSize::Word);
+    // Write a test program to memory 
+    cpu.write_memory(0, 0x2401_0002, AccessSize::Word);
+    cpu.write_memory(4, 0x2421_0003, AccessSize::Word);
 
-    for _ in 0..3 {
-        cpu.step(); // Execute the instructions
+    // Execute the program
+    for _ in 0..2 {
+        cpu.step();
     }
+
+    println!("r1: {}", cpu.registers[1]);
 }
 //] main
