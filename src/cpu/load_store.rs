@@ -18,7 +18,13 @@ impl Cpu {
     /// SW rt, offset(rs)
     /// Memory[rs + sign_extend(offset)] = GPR[rt]
     pub(super) fn ins_sw(&mut self, instr: Instruction) {
-        // Your implementation here
+        let address = self.target_address(instr);
+
+        if let Err(_) =
+            self.write_memory(address, self.get_rt(instr), AccessSize::Word)
+        {
+            self.exception("Memory write error");
+        }
     }
     //] ins-sw
 }
