@@ -39,6 +39,8 @@ impl App {
 
         // Load the executable from the provided path
         if let Some(path) = &args.executable {
+            emulator.run_until(0x80030000); // Run until the BIOS entry point
+
             let exe = Executable::load(path).expect("Failed to load executable");
 
             // Load the executable into the CPU

@@ -47,7 +47,7 @@ impl Emulator {
                 pixel[3] = 255; // Alpha channel
             }
 
-            i += 0.01;
+            i += 0.03;
 
             // Send the frame data to the UI thread
             if event_loop_proxy.send_event(AppEvent::FrameReady(frame_data)).is_err() {
@@ -77,6 +77,16 @@ impl Emulator {
             }
         }
 
+        false
+    }
+
+    pub fn run_until(&mut self, pc: u32) -> bool {
+        while self.cpu.pc != pc {
+            if self.step() {
+                // Exit if the debugger has requested to quit
+                return true;
+            }
+        }
         false
     }
 
