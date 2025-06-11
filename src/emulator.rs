@@ -1,3 +1,5 @@
+use std::sync::atomic::Ordering;
+
 use winit::event_loop::EventLoopProxy;
 
 use crate::app::AppEvent;
@@ -21,9 +23,18 @@ fn rainbow_rgb(i: f32) -> (u8, u8, u8) {
 impl Emulator {
     /// Create a new emulator instance
     pub fn new() -> Self {
+        let cpu = Cpu::new();
+        let debugger = Debugger::new();
+        let breakpoint = debugger.triggered.clone();
+        ctrlc::set_handler(move || {
+            println!("Ctrl-C pressed, stopping execution...");
+            breakpoint.store(true, Ordering::Relaxed);
+        })
+        .expect("Error setting Ctrl-C handler");
+
         Emulator {
-            cpu: Cpu::new(),
-            debugger: Debugger::new(),
+            cpu,
+            debugger
         }
     }
 
@@ -92,7 +103,7 @@ impl Emulator {
 
     // Perform one step of the emulator cycle.
     pub fn step(&mut self) -> bool {
-        if self.debugger.stepping || self.debugger.has_breakpoint(self.cpu.pc) {
+        if self.debugger.should_break(&self.cpu) {
             self.debugger.stepping = true;
 
             if self.debugger.enter(&mut self.cpu) {

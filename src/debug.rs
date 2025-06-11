@@ -3,7 +3,7 @@ use crate::{
     bus::AccessSize,
 };
 use rustyline::{DefaultEditor, error::ReadlineError};
-use std::collections::HashSet;
+use std::{collections::HashSet, sync::{atomic::AtomicBool, Arc}};
 
 #[derive(Debug)]
 pub struct Debugger {
@@ -18,6 +18,8 @@ pub struct Debugger {
 
     /// The addresses where the debugger will break the execution
     breakpoints: HashSet<u32>,
+
+    pub triggered: Arc<AtomicBool>,
 }
 
 const REGISTERS: [&str; 32] = [
@@ -39,6 +41,7 @@ impl Debugger {
             disasm: psdisasm::Disasm::default(),
             editor,
             breakpoints: HashSet::new(),
+            triggered: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -218,6 +221,22 @@ impl Debugger {
     /// Checks if the given address is a breakpoint.
     pub fn has_breakpoint(&self, address: u32) -> bool {
         self.breakpoints.contains(&address)
+    }
+
+    pub fn should_break(&self, cpu: &Cpu) -> bool {
+        // Check if the CPU is in stepping mode
+        if self.stepping {
+            return true;
+        }
+
+        if self.triggered.load(std::sync::atomic::Ordering::Relaxed) {
+            // If the triggered flag is set, we should break
+            self.triggered.store(false, std::sync::atomic::Ordering::Relaxed);
+            return true;
+        }
+
+        // Check if the current PC is a breakpoint
+        self.has_breakpoint(cpu.pc)
     }
 }
 
