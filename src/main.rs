@@ -4,6 +4,7 @@ mod cpu;
 mod debug;
 mod emulator;
 mod executable;
+mod gpu;
 mod interrupts;
 mod ram;
 mod rom;

@@ -1,7 +1,5 @@
 use crate::{
-    interrupts::{INTERRUPTS_BASE, INTERRUPTS_END, InterruptController},
-    ram::{self, Ram},
-    rom::{self, Rom},
+    gpu::Gpu, interrupts::{InterruptController, INTERRUPTS_BASE, INTERRUPTS_END}, ram::{self, Ram}, rom::{self, Rom}
 };
 
 /// Represents the possible access sizes for memory operations.
@@ -18,6 +16,7 @@ pub enum AccessSize {
 pub struct Bus {
     pub ram: Ram,
     pub rom: Rom,
+    pub gpu: Gpu,
 
     pub interrupts: InterruptController,
 
@@ -53,7 +52,6 @@ const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f801080, 0x1f8010ff, "DMA"),
     (0x1f801100, 0x1f80112f, "Timers"),
     (0x1f801800, 0x1f801803, "CD-ROM"),
-    (0x1f801810, 0x1f801817, "GPU"),
     (0x1f801820, 0x1f801827, "MDEC"),
     (0x1f801c00, 0x1f801fff, "SPU"),
     (0x1f802000, 0x1f803fff, "Exp2"),
@@ -66,6 +64,7 @@ impl Bus {
         Self {
             ram: Ram::new(),
             rom: Rom::new(),
+            gpu: Gpu::new(),
             interrupts: InterruptController::new(),
             biu_control: [0; 9],
             dram_control: 0,
@@ -84,6 +83,15 @@ impl Bus {
         match address {
             ram::RAM_BASE..=ram::RAM_END => Ok(self.ram.read(address, size)),
             rom::ROM_BASE..=rom::ROM_END => Ok(self.rom.read(address, size)),
+            0x1f801810..=0x1f801817 => {
+                // GPU registers
+                assert!(
+                    size == AccessSize::Word,
+                    "[Bus] Unimplemented read size ({size:?}) for GPU registers"
+                );
+
+                Ok(self.gpu.read(address))
+            }
             BIU_CONTROL_BASE..=BIU_CONTROL_END => {
                 assert!(
                     size == AccessSize::Word,
@@ -121,6 +129,15 @@ impl Bus {
         match address {
             ram::RAM_BASE..=ram::RAM_END => self.ram.write(address, value, size),
             rom::ROM_BASE..=rom::ROM_END => self.rom.write(address, value, size),
+              0x1f801810..=0x1f801817 => {
+                // GPU registers
+                assert!(
+                    size == AccessSize::Word,
+                    "[Bus] Unimplemented read size ({size:?}) for GPU registers"
+                );
+
+                self.gpu.write(address, value);
+            }
             0x1f80_4000 => print!("{}", value as u8 as char),
             BIU_CONTROL_BASE..=BIU_CONTROL_END => {
                 assert!(size == AccessSize::Word);
