@@ -1,5 +1,5 @@
 use crate::{
-    gpu::Gpu, interrupts::{InterruptController, INTERRUPTS_BASE, INTERRUPTS_END}, ram::{self, Ram}, rom::{self, Rom}
+    gpu::Gpu, interrupts::{InterruptController, INTERRUPTS_BASE, INTERRUPTS_END}, ram::{self, Ram}, rom::{self, Rom}, scratchpad::Scratchpad
 };
 
 /// Represents the possible access sizes for memory operations.
@@ -34,6 +34,9 @@ pub struct Bus {
 
     /// The DRAM control register
     dram_control: u32,
+
+    /// The scratchpad RAM, which is 1KB in size.
+    pub scratchpad: Scratchpad
 }
 
 const BIU_CONTROL_BASE: u32 = 0x1f80_1000;
@@ -46,7 +49,6 @@ const DRAM_CONTROL_END: u32 = DRAM_CONTROL_BASE + DRAM_CONTROL_SIZE - 1;
 
 const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f000000, 0x1f7fffff, "Exp1"),
-    (0x1f800000, 0x1f8003ff, "Scratchpad"),
     (0x1f801040, 0x1f80104f, "Joypad"),
     (0x1f801050, 0x1f80105f, "Serial"),
     (0x1f801080, 0x1f8010ff, "DMA"),
@@ -68,6 +70,7 @@ impl Bus {
             interrupts: InterruptController::new(),
             biu_control: [0; 9],
             dram_control: 0,
+            scratchpad: Scratchpad::new(),
         }
     }
 
@@ -81,6 +84,10 @@ impl Bus {
         }
 
         match address {
+            0x1f80_0000..=0x1f80_03ff => {
+                // Scratchpad RAM
+                Ok(self.scratchpad.read(address, size))
+            }
             ram::RAM_BASE..=ram::RAM_END => Ok(self.ram.read(address, size)),
             rom::ROM_BASE..=rom::ROM_END => Ok(self.rom.read(address, size)),
             0x1f801810..=0x1f801817 => {
@@ -129,7 +136,11 @@ impl Bus {
         match address {
             ram::RAM_BASE..=ram::RAM_END => self.ram.write(address, value, size),
             rom::ROM_BASE..=rom::ROM_END => self.rom.write(address, value, size),
-              0x1f801810..=0x1f801817 => {
+            0x1f80_0000..=0x1f80_03ff => {
+                // Scratchpad RAM
+                self.scratchpad.write(address, value, size);
+            }
+            0x1f801810..=0x1f801817 => {
                 // GPU registers
                 assert!(
                     size == AccessSize::Word,

@@ -8,6 +8,7 @@ mod gpu;
 mod interrupts;
 mod ram;
 mod rom;
+mod scratchpad;
 
 use clap::Parser;
 use winit::event_loop::EventLoop;
