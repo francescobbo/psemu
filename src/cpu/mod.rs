@@ -1,4 +1,5 @@
 mod arith;
+mod branch;
 mod instruction;
 mod load_store;
 mod logic;
@@ -24,6 +25,10 @@ pub struct Cpu {
     pub pc: u32,
 
     pub ram: Ram,
+
+    /// The target address for branch instructions, if applicable
+    pub branch_target: Option<u32>,
+    pub current_branch_target: Option<u32>,
 }
 
 impl Cpu {
@@ -34,10 +39,14 @@ impl Cpu {
             lo: 0,
             pc: 0,
             ram: Ram::new(),
+            branch_target: None,
+            current_branch_target: None,
         }
     }
 
     pub fn step(&mut self) {
+        self.current_branch_target = self.branch_target.take();
+
         // Fetch the instruction at the current program counter (PC).
         let instruction = self.fetch_instruction(self.pc).unwrap();
 
@@ -52,6 +61,11 @@ impl Cpu {
 
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);
+
+        // If a branch target was set, update the PC to that target.
+        if let Some(target) = self.current_branch_target.take() {
+            self.pc = target;
+        }
     }
 
     fn fetch_instruction(&self, address: u32) -> Result<Instruction, ()> {
@@ -69,6 +83,8 @@ impl Cpu {
                 0x04 => self.ins_sllv(instruction),
                 0x06 => self.ins_srlv(instruction),
                 0x07 => self.ins_srav(instruction),
+                0x08 => self.ins_jr(instruction),
+                0x09 => self.ins_jalr(instruction),
                 0x10 => self.ins_mfhi(instruction),
                 0x11 => self.ins_mthi(instruction),
                 0x12 => self.ins_mflo(instruction),
@@ -92,6 +108,24 @@ impl Cpu {
                     instruction.funct()
                 )),
             },
+            0x01 => {
+                let funct = instruction.rt();
+                let link = funct & 0x1e == 0x10;
+
+                match (funct & 1, link) {
+                    (0, false) => self.ins_bltz(instruction),
+                    (0, true) => self.ins_bltzal(instruction),
+                    (1, false) => self.ins_bgez(instruction),
+                    (1, true) => self.ins_bgezal(instruction),
+                    _ => unreachable!(),
+                }
+            }
+            0x02 => self.ins_j(instruction),
+            0x03 => self.ins_jal(instruction),
+            0x04 => self.ins_beq(instruction),
+            0x05 => self.ins_bne(instruction),
+            0x06 => self.ins_blez(instruction),
+            0x07 => self.ins_bgtz(instruction),
             0x08 => self.ins_addi(instruction),
             0x09 => self.ins_addiu(instruction),
             0x0a => self.ins_slti(instruction),

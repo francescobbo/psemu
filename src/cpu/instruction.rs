@@ -31,4 +31,7 @@ bitfield! {
 
     /// The funct field (6 bits) is a secondary opcode
     pub funct, _: 5, 0;
+
+    /// The target address field (26 bits) is used in jump instructions
+    pub jump_target, _: 25, 0;
 }
