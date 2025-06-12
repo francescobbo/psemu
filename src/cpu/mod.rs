@@ -1,5 +1,7 @@
 mod arith;
 mod branch;
+mod control;
+mod control_types;
 mod instruction;
 mod load_store;
 mod logic;
@@ -164,10 +166,6 @@ impl Cpu {
         }
     }
 
-    /// Mock implementation of an exception handler
-    fn exception(&self, code: &str) {
-        panic!("Exception raised: {code}");
-    }
     /// Get the value of the GPR register pointed to by rs
     fn get_rs(&self, instruction: Instruction) -> u32 {
         self.registers[instruction.rs()]

@@ -34,4 +34,7 @@ bitfield! {
 
     /// The target address field (26 bits) is used in jump instructions
     pub jump_target, _: 25, 0;
+
+    /// The coprocessor specific instruction
+    pub cop_instruction, _: 24, 0;
 }

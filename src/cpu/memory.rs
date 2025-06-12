@@ -7,13 +7,6 @@ pub enum MemoryError {
     BusError,
 }
 
-#[derive(Debug)]
-pub enum AccessType {
-    Read,
-    Write,
-    InstructionFetch,
-}
-
 #[derive(Debug, PartialEq)]
 enum MipsSegment {
     Kuseg,
@@ -166,17 +159,17 @@ impl Cpu {
     pub fn memory_access_exception(
         &mut self,
         error: MemoryError,
-        access_type: AccessType,
+        access_type: super::AccessType,
         address: u32,
     ) {
-        use AccessType::*;
+        use super::AccessType::*;
         use ExceptionCause::*;
         use MemoryError::*;
 
         let cause = match (error, access_type) {
-            (AlignmentError, Read | InstructionFetch) => AddressErrorLoad,
+            (AlignmentError, Read | Fetch) => AddressErrorLoad,
             (AlignmentError, Write) => AddressErrorStore,
-            (BusError, InstructionFetch) => InstructionBusError,
+            (BusError, Fetch) => InstructionBusError,
             (BusError, Read) => DataBusError,
             (BusError, Write) => {
                 // Writes to invalid addresses do not cause an exception.
