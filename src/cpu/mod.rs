@@ -2,6 +2,7 @@ mod arith;
 mod branch;
 mod control;
 mod control_types;
+mod cop;
 mod instruction;
 mod load_store;
 mod logic;
