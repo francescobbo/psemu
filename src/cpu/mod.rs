@@ -10,7 +10,7 @@ mod memory;
 #[cfg(test)]
 mod test_utils;
 
-use crate::ram::Ram;
+use crate::{bus::Bus, cpu::control::Cop0, ram::Ram};
 use instruction::Instruction;
 
 pub enum AccessSize {
@@ -39,7 +39,8 @@ pub struct Cpu {
     pub lo: u32,
     pub pc: u32,
 
-    pub ram: Ram,
+    pub bus: Bus,
+    pub cop0: Cop0,
 
     /// The target address for branch instructions, if applicable
     pub branch_target: Option<u32>,
@@ -57,7 +58,8 @@ impl Cpu {
             hi: 0,
             lo: 0,
             pc: 0,
-            ram: Ram::new(),
+            bus: Bus::new(),
+            cop0: Cop0::new(),
             branch_target: None,
             current_branch_target: None,
             delayed_load: None,
