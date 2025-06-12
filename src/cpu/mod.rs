@@ -3,6 +3,7 @@ mod branch;
 mod instruction;
 mod load_store;
 mod logic;
+mod memory;
 #[cfg(test)]
 mod test_utils;
 
@@ -163,23 +164,6 @@ impl Cpu {
         }
     }
 
-    pub fn read_memory(
-        &self,
-        address: u32,
-        size: AccessSize,
-    ) -> Result<u32, ()> {
-        Ok(self.ram.read(address, size))
-    }
-
-    pub fn write_memory(
-        &mut self,
-        address: u32,
-        value: u32,
-        size: AccessSize,
-    ) -> Result<(), ()> {
-        self.ram.write(address, value, size);
-        Ok(())
-    }
     /// Mock implementation of an exception handler
     fn exception(&self, code: &str) {
         panic!("Exception raised: {code}");
