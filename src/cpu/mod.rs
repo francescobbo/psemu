@@ -130,7 +130,7 @@ impl Cpu {
     }
 
     /// Fetch the instruction from the given address.
-    fn fetch_instruction(&self, address: u32) -> Result<Instruction, MemoryError> {
+    fn fetch_instruction(&mut self, address: u32) -> Result<Instruction, MemoryError> {
         Ok(Instruction(self.read_memory(address, AccessSize::Word)?))
     }
 
@@ -179,12 +179,24 @@ impl Cpu {
                 }
             }
             0x01 => {
+                let link = instruction.rt() & 0x1e == 0x10;
+
                 // This format abuses the `rt` field for a sub-opcode
-                match instruction.rt() {
-                    0x00 => self.ins_bltz(instruction),
-                    0x01 => self.ins_bgez(instruction),
-                    0x10 => self.ins_bltzal(instruction),
-                    0x11 => self.ins_bgezal(instruction),
+                match instruction.rt() & 1 {
+                    0 => {
+                        if link {
+                            self.ins_bltzal(instruction);
+                        } else {
+                            self.ins_bltz(instruction);
+                        }
+                    }
+                    1 => {
+                        if link {
+                            self.ins_bgezal(instruction);
+                        } else {
+                            self.ins_bgez(instruction);
+                        }
+                    }
                     _ => {
                         println!(
                             "Unimplemented funct: {:02x} @ {:08x}",

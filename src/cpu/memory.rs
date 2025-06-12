@@ -24,7 +24,7 @@ enum MipsSegment {
 
 impl Cpu {
     /// Performs a memory read operation.
-    pub fn read_memory(&self, address: u32, size: AccessSize) -> Result<u32, MemoryError> {
+    pub fn read_memory(&mut self, address: u32, size: AccessSize) -> Result<u32, MemoryError> {
         Self::check_alignment(address, size)?;
 
         let (segment, phys_addr) = self.extract_segment(address);

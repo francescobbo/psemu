@@ -14,9 +14,10 @@ impl Cpu {
     /// GPR[rd] = PC + 4
     /// PC = GPR[rs]
     pub(super) fn ins_jalr(&mut self, instruction: Instruction) {
+        let target = self.get_rs(instruction);
+
         self.write_reg(instruction.rd(), self.pc.wrapping_add(4));
 
-        let target = self.get_rs(instruction);
         self.branch_target = Some(target);
     }
 
@@ -48,9 +49,11 @@ impl Cpu {
     /// if (signed(GPR[rs]) < 0)
     ///     PC = PC + sign_extended(offset) << 2
     pub(super) fn ins_bltzal(&mut self, instruction: Instruction) {
+        let value = self.get_rs(instruction) as i32;
+
         self.write_reg(31, self.pc.wrapping_add(4));
 
-        if (self.get_rs(instruction) as i32) < 0 {
+        if value < 0 {
             let target = self.pc.wrapping_add((instruction.simm16() as u32) << 2);
             self.branch_target = Some(target);
         }
@@ -62,9 +65,11 @@ impl Cpu {
     /// if (signed(GPR[rs]) >= 0)
     ///    PC = PC + sign_extended(offset) << 2
     pub(super) fn ins_bgezal(&mut self, instruction: Instruction) {
+        let value = self.get_rs(instruction) as i32;
+
         self.write_reg(31, self.pc.wrapping_add(4));
 
-        if (self.get_rs(instruction) as i32) >= 0 {
+        if value >= 0 {
             let target = self.pc.wrapping_add((instruction.simm16() as u32) << 2);
             self.branch_target = Some(target);
         }

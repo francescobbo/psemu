@@ -87,6 +87,20 @@ impl Debugger {
                 "r" | "registers" => {
                     Self::print_registers(cpu);
                 }
+                "dump-mem" => {
+                    let mut ram: Vec<u8> = vec![0; 2 * 1024 * 1024]; // 2 MiB of RAM
+                    for i in 0..(ram.len()) {
+                        let value = cpu.read_memory(i as u32, AccessSize::Byte).unwrap();
+                        ram[i] = value as u8;
+                    }
+
+                    // write to a file
+                    let file_path = "ram_dump.bin";
+                    match std::fs::write(file_path, ram) {
+                        Ok(_) => println!("Memory dumped to {}", file_path),
+                        Err(e) => println!("Error writing memory dump: {}", e),
+                    }
+                }
                 // Read memory
                 "rm" | "read-mem" => {
                     // Get the address from the command line
@@ -211,7 +225,7 @@ impl Debugger {
 
     /// Prints the contents of a memory location, as a little endian 32-bit
     /// integer
-    pub fn read_memory(cpu: &Cpu, address: u32) {
+    pub fn read_memory(cpu: &mut Cpu, address: u32) {
         match cpu.read_memory(address, AccessSize::Word) {
             Ok(value) => println!("{address:08x}: {value:08x}"),
             Err(_) => println!("Error reading memory at address {address:08x}"),
@@ -229,9 +243,9 @@ impl Debugger {
             return true;
         }
 
-        if self.triggered.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.triggered.load(std::sync::atomic::Ordering::SeqCst) {
             // If the triggered flag is set, we should break
-            self.triggered.store(false, std::sync::atomic::Ordering::Relaxed);
+            self.triggered.store(false, std::sync::atomic::Ordering::SeqCst);
             return true;
         }
 

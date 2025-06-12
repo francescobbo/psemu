@@ -6,6 +6,7 @@ mod emulator;
 mod executable;
 mod gpu;
 mod interrupts;
+mod joy;
 mod ram;
 mod rom;
 mod scratchpad;

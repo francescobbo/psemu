@@ -28,7 +28,7 @@ impl Emulator {
         let breakpoint = debugger.triggered.clone();
         ctrlc::set_handler(move || {
             println!("Ctrl-C pressed, stopping execution...");
-            breakpoint.store(true, Ordering::Relaxed);
+            breakpoint.store(true, Ordering::SeqCst);
         })
         .expect("Error setting Ctrl-C handler");
 
@@ -39,8 +39,6 @@ impl Emulator {
     }
 
     pub fn run_threaded(mut emulator: Emulator, event_loop_proxy: EventLoopProxy<AppEvent>) {
-        let mut i = 0.0;
-        
         loop {
             // run for approximately 1/60th of a second
             if emulator.run_for_cycles(677_376) {
@@ -50,15 +48,14 @@ impl Emulator {
 
             // Get VRAM frame data (stub: all white)
             let mut frame_data: Vec<u8> = vec![0; 1024 * 512 * 4];
-            let (r, g, b) = rainbow_rgb(i);
             for (j, pixel) in frame_data.chunks_exact_mut(4).enumerate() {
+                let (r, g, b) = emulator.cpu.bus.gpu.get_pixel_color(j);
+
                 pixel[0] = r;
                 pixel[1] = g;
                 pixel[2] = b;
                 pixel[3] = 255; // Alpha channel
             }
-
-            i += 0.03;
 
             // Send the frame data to the UI thread
             if event_loop_proxy.send_event(AppEvent::FrameReady(frame_data)).is_err() {

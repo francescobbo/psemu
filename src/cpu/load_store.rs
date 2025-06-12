@@ -8,6 +8,12 @@ impl Cpu {
             return;
         }
 
+        if let Some(DelayedLoad { target: tgt, .. }) = self.current_load_delay {
+            if target == tgt {
+                self.current_load_delay = None; // Clear the current load delay
+            }
+        }
+
         self.load_delay = Some(DelayedLoad { target, value });
     }
 
@@ -15,6 +21,10 @@ impl Cpu {
     /// LB rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lb(&mut self, instr: Instruction) {
+        // if self.pc > 0x80010000 && self.pc < 0x90000000 {
+        //     println!("LB  @ {:#x}", self.pc);
+        // }
+
         let address = self.target_address(instr);
 
         match self.read_memory(address, AccessSize::Byte) {
@@ -185,7 +195,7 @@ impl Cpu {
             0 => (aligned_word & 0xffffff00) | (reg >> 24),
             1 => (aligned_word & 0xffff0000) | (reg >> 16),
             2 => (aligned_word & 0xff000000) | (reg >> 8),
-            3 => aligned_word,
+            3 => reg,
             _ => unreachable!(),
         };
 
