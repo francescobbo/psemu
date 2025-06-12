@@ -1,8 +1,6 @@
-//[ new-logic
 use crate::cpu::{Cpu, Instruction};
 
 impl Cpu {
-    //[ ins-r-type-shifts
     /// 00.00 - SLL - R-Type
     /// SLL rd, rt, shamt
     /// GPR[rd] = GPR[rt] << shamt
@@ -61,8 +59,7 @@ impl Cpu {
             (value >> (self.get_rs(instruction) & 0x1f)) as u32,
         );
     }
-    //] ins-r-type-shifts
-    //[ ins-r-type-logic
+
     /// 00.24 - AND - R-Type
     /// AND rd, rs, rt
     /// GPR[rd] = GPR[rs] & GPR[rt]
@@ -124,10 +121,7 @@ impl Cpu {
 
         self.write_reg(instruction.rd(), result);
     }
-    //] ins-r-type-logic
 
-    //[ logic-instructions
-    //[ slti-stubs
     /// 0A - SLTI - I-type
     /// SLTI rt, rs, immediate
     /// GPR[rt] = (signed(GPR[rs]) < sign_extend(immediate)) ? 1 : 0
@@ -147,8 +141,7 @@ impl Cpu {
 
         self.write_reg(instruction.rt(), result)
     }
-    //] slti-stubs
-    //[ logic-instructions
+
     /// 0C - ANDI - I-Type
     /// ANDI rt, rs, immediate
     /// GPR[rt] = GPR[rs] & immediate
@@ -169,18 +162,15 @@ impl Cpu {
     pub(super) fn ins_xori(&mut self, instr: Instruction) {
         self.write_reg(instr.rt(), self.get_rs(instr) ^ instr.imm16());
     }
-    //] logic-instructions
-    //[ ins-lui
+
     /// 0F - LUI - I-Type
     /// LUI rt, immediate
     /// GPR[rt] = immediate << 16
     pub(super) fn ins_lui(&mut self, instr: Instruction) {
         self.write_reg(instr.rt(), instr.imm16() << 16);
     }
-    //] ins-lui
 }
-//] new-logic
-//[ !omit
+
 #[cfg(test)]
 mod tests {
     use crate::cpu::test_utils::*;

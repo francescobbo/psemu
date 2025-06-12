@@ -1,7 +1,4 @@
-//[ ram-use-access-size
 use crate::AccessSize;
-//] ram-use-access-size
-//[ ram-new
 pub const RAM_SIZE: usize = 2 * 1024 * 1024;
 
 /// A RAM (Random Access Memory) structure that simulates a memory space,
@@ -17,7 +14,6 @@ impl Ram {
         }
     }
 
-    //[ ram-public-api
     pub fn read(&self, address: u32, size: AccessSize) -> u32 {
         match size {
             AccessSize::Byte => self.read8(address) as u32,
@@ -33,8 +29,6 @@ impl Ram {
             AccessSize::Word => self.write32(address, value),
         }
     }
-    //] ram-public-api
-    //[ ram-accessors
     fn read8(&self, address: u32) -> u8 {
         self.data[address as usize]
     }
@@ -76,10 +70,7 @@ impl Ram {
         self.data[address as usize + 2] = bytes[2];
         self.data[address as usize + 3] = bytes[3];
     }
-    //] ram-accessors
 }
-//] ram-new
-//[ ram-tests
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,7 +99,6 @@ mod tests {
         let ram = Ram::new();
         ram.read(RAM_SIZE as u32, AccessSize::Byte);
     }
-    //[ !omit
     #[test]
     #[should_panic]
     fn test_ram_out_of_bounds_read16() {
@@ -143,6 +133,4 @@ mod tests {
         let mut ram = Ram::new();
         ram.write((RAM_SIZE - 3) as u32, 0x12345678, AccessSize::Word);
     }
-    //] !omit
 }
-//] ram-tests

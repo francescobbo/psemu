@@ -1,4 +1,3 @@
-//[ !omit
 #![allow(dead_code)]
 use super::{AccessSize, Cpu};
 
@@ -61,4 +60,3 @@ pub fn r_type(funct: u32, rd: usize, rt: usize, rs: usize) -> u32 {
 pub fn j_type(opcode: u32, target_pseudo_addr: u32) -> u32 {
     (opcode << 26) | (target_pseudo_addr >> 2)
 }
-//] !omit

@@ -1,17 +1,11 @@
 mod arith;
 mod instruction;
-//[ mod-load-store
 mod load_store;
-//] mod-load-store
-//[ mod-logic
 mod logic;
-//] mod-logic
 #[cfg(test)]
 mod test_utils;
 
-//[ !omit
 use crate::ram::Ram;
-//] !omit
 use instruction::Instruction;
 
 pub enum AccessSize {
@@ -39,9 +33,7 @@ impl Cpu {
         }
     }
 
-    //[ cpu-stubs
     pub fn step(&mut self) {
-        //[ ins-disasm
         // Fetch the instruction at the current program counter (PC).
         let instruction = self.fetch_instruction(self.pc).unwrap();
 
@@ -53,7 +45,6 @@ impl Cpu {
 
         // Update the program counter to point to the next instruction.
         self.pc += 4;
-        //] ins-disasm
 
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);
@@ -66,7 +57,6 @@ impl Cpu {
 
     fn execute(&mut self, instruction: Instruction) {
         let opcode = instruction.opcode();
-        //[ ins-opcodes
         match opcode {
             0x00 => match instruction.funct() {
                 0x00 => self.ins_sll(instruction),
@@ -91,7 +81,6 @@ impl Cpu {
                 )),
             },
             0x08 => self.ins_addi(instruction),
-            //] ins-opcodes
             0x09 => self.ins_addiu(instruction),
             0x0a => self.ins_slti(instruction),
             0x0b => self.ins_sltiu(instruction),
@@ -106,11 +95,9 @@ impl Cpu {
             0x25 => self.ins_lhu(instruction),
             0x28 => self.ins_sb(instruction),
             0x29 => self.ins_sh(instruction),
-            //[ ins-unimplemented
             0x2b => self.ins_sw(instruction),
             _ => self.exception(&format!("Unimplemented opcode {opcode:02x}")),
         }
-        //] ins-unimplemented
     }
 
     pub fn read_memory(
@@ -130,20 +117,15 @@ impl Cpu {
         self.ram.write(address, value, size);
         Ok(())
     }
-    //] cpu-stubs
-    //[ cpu-exception
     /// Mock implementation of an exception handler
     fn exception(&self, code: &str) {
         panic!("Exception raised: {code}");
     }
-    //] cpu-exception
-    //[ ins-helpers
     /// Get the value of the GPR register pointed to by rs
     fn get_rs(&self, instruction: Instruction) -> u32 {
         self.registers[instruction.rs()]
     }
 
-    //[ helpers-rs-target
     /// Get the value of the GPR register pointed to by rt
     fn get_rt(&self, instr: Instruction) -> u32 {
         self.registers[instr.rt()]
@@ -155,7 +137,6 @@ impl Cpu {
         let rs_value = self.get_rs(instr);
         rs_value.wrapping_add(offset)
     }
-    //] helpers-rs-target
 
     /// Write a value to a GPR register
     fn write_reg(&mut self, index: usize, value: u32) {
@@ -164,6 +145,4 @@ impl Cpu {
             self.registers[index] = value;
         }
     }
-    //] ins-helpers
 }
-//] cpu-new

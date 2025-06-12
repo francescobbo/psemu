@@ -1,8 +1,6 @@
-//[ new-file
 use super::{AccessSize, Cpu, Instruction};
 
 impl Cpu {
-    //[ ins-lb
     /// 20 - LB - I-type
     /// LB rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + sign_extend(offset), 8-bit])
@@ -18,9 +16,7 @@ impl Cpu {
             Err(_) => self.exception("Memory read error"),
         }
     }
-    //] ins-lb
-    //[ load-store-impl
-    //[ ins-lh-lw-lbu-lhu-stub
+
     /// 21 - LH - I-type
     /// LH rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + sign_extend(offset), 16-bit])
@@ -72,9 +68,7 @@ impl Cpu {
             Err(_) => self.exception("Memory read error"),
         }
     }
-    //] ins-lh-lw-lbu-lhu-stub
 
-    //[ sb-sh-stub
     /// 28 - SB - I-type
     /// SB rt, offset(rs)
     /// Memory[rs + sign_extend(offset), 8-bit] = GPR[rt] & 0xff
@@ -100,8 +94,6 @@ impl Cpu {
             self.exception("Memory write error");
         }
     }
-    //] sb-sh-stub
-    //] load-store-impl
     /// 2B - SW - I-type
     /// SW rt, offset(rs)
     /// Memory[rs + sign_extend(offset)] = GPR[rt]
@@ -115,8 +107,7 @@ impl Cpu {
         }
     }
 }
-//] new-file
-//[ !omit
+
 #[cfg(test)]
 mod tests {
     use crate::{AccessSize, cpu::test_utils::*};
@@ -280,4 +271,3 @@ mod tests {
         );
     }
 }
-//] !omit

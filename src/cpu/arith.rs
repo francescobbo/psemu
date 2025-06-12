@@ -1,8 +1,6 @@
-//[ arith-new-file
 use super::{Cpu, Instruction};
 
 impl Cpu {
-    //[ ins-r-type-arith
     /// 00.20 - ADD - R-Type
     /// ADD rd, rs, rt
     /// GPR[rd] = signed(GPR[rs]) + signed(GPR[rt])
@@ -61,9 +59,7 @@ impl Cpu {
                 .wrapping_sub(self.get_rt(instruction)),
         );
     }
-    //] ins-r-type-arith
 
-    //[ arith-ins-addi
     /// 08 - ADDI - I-type
     /// ADDI rt, rs, immediate
     /// GPR[rt] = signed(GPR[rs]) + sign_extend(immediate)
@@ -78,9 +74,7 @@ impl Cpu {
             None => self.exception("Overflow"),
         }
     }
-    //] arith-ins-addi
 
-    //[ arith-ins-addiu
     /// 09 - ADDIU - I-Type
     /// ADDIU rt, rs, immediate
     /// GPR[rt] = GPR[rs] + sign_extend(immediate)
@@ -92,10 +86,8 @@ impl Cpu {
 
         self.write_reg(instr.rt(), result);
     }
-    //] arith-ins-addiu
 }
-//] arith-new-file
-//[ !omit
+
 #[cfg(test)]
 mod tests {
     use crate::cpu::test_utils::*;
@@ -292,4 +284,3 @@ mod tests {
         assert_eq!(cpu.registers[0], 0);
     }
 }
-//] !omit

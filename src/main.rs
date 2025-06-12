@@ -1,16 +1,11 @@
 mod cpu;
-//[ mod-debugger
 mod debugger;
-//[ !omit
 mod ram;
 
 use cpu::{AccessSize, Cpu};
-//] !omit
 
 use debugger::Debugger;
-//] mod-debugger
 
-//[ main
 fn main() {
     let mut cpu = Cpu::new();
 
@@ -28,9 +23,6 @@ fn main() {
         cpu.step();
     }
 
-    //[ dbg-example
     let debugger = Debugger::default();
     debugger.print_registers(&cpu);
-    //] dbg-example
 }
-//] main

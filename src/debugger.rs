@@ -1,12 +1,9 @@
-//[ new-file
 use crate::{AccessSize, Cpu};
 
 #[derive(Default)]
 pub struct Debugger {}
 
-//[ display-mode
 /// Determines how the values are displayed in the debugger
-#[derive(Debug)]
 pub enum DisplayMode {
     Binary,
     Octal,
@@ -14,10 +11,8 @@ pub enum DisplayMode {
     Hexadecimal,
     Character,
 }
-//] display-mode
 
 impl Debugger {
-    //[ print-registers
     /// Prints the contents of the CPU registers
     pub fn print_registers(&self, cpu: &Cpu) {
         for (i, &value) in cpu.registers.iter().enumerate() {
@@ -30,9 +25,7 @@ impl Debugger {
 
         println!("pc: {:#08x}", cpu.pc);
     }
-    //] print-registers
 
-    //[ read-memory
     /// Prints the contents of a memory location (of the specified size),
     /// considering a little-endian format.
     pub fn read_memory(
@@ -50,7 +43,6 @@ impl Debugger {
         }
     }
 
-    //[ format-value
     fn format_value(&self, value: u32, mode: DisplayMode) -> String {
         match mode {
             DisplayMode::Binary => format!("{value:032b}"),
@@ -60,7 +52,4 @@ impl Debugger {
             DisplayMode::Character => format!("{}", value as u8 as char),
         }
     }
-    //] format-value
-    //] read-memory
 }
-//] new-file

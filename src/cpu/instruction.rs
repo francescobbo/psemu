@@ -22,7 +22,6 @@ bitfield! {
     /// The immediate field (16 bits) is an unsigned value used in some
     /// instructions, zero-extended to 32 bits
     pub imm16, _: 15, 0;
-    //[ ins-r-type
 
     /// The RD field (5 bits) specifies the destination register index
     pub u8, into usize, rd, _: 15, 11;
@@ -32,5 +31,4 @@ bitfield! {
 
     /// The funct field (6 bits) is a secondary opcode
     pub funct, _: 5, 0;
-    //] ins-r-type
 }
