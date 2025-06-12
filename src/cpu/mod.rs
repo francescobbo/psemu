@@ -15,7 +15,18 @@ pub enum AccessSize {
     Word,
 }
 
+pub enum AccessType {
+    Read,
+    Write,
+    Fetch,
+}
+
 const NUM_REGISTERS: usize = 32;
+
+struct DelayedLoad {
+    pub target: usize,
+    pub value: u32,
+}
 
 /// The emulated PS1 CPU
 pub struct Cpu {
@@ -29,6 +40,10 @@ pub struct Cpu {
     /// The target address for branch instructions, if applicable
     pub branch_target: Option<u32>,
     pub current_branch_target: Option<u32>,
+
+    /// A load delayed by one instruction, used for load delay slots
+    pub delayed_load: Option<DelayedLoad>,
+    pub current_delayed_load: Option<DelayedLoad>,
 }
 
 impl Cpu {
@@ -41,6 +56,8 @@ impl Cpu {
             ram: Ram::new(),
             branch_target: None,
             current_branch_target: None,
+            delayed_load: None,
+            current_delayed_load: None,
         }
     }
 
