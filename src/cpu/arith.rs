@@ -1,6 +1,103 @@
 use super::{Cpu, Instruction};
 
 impl Cpu {
+    /// 00.10 - MFHI - R-Type
+    /// MFHI rd
+    /// GPR[rd] = HI
+    pub(super) fn ins_mfhi(&mut self, instruction: Instruction) {
+        self.write_reg(instruction.rd(), self.hi);
+    }
+
+    /// 00.11 - MTHI - R-Type
+    /// MTHI rs
+    /// HI = GPR[rs]
+    pub(super) fn ins_mthi(&mut self, instruction: Instruction) {
+        self.hi = self.get_rs(instruction);
+    }
+
+    /// 00.12 - MFLO - R-Type
+    /// MFLO rd
+    /// GPR[rd] = LO
+    pub(super) fn ins_mflo(&mut self, instruction: Instruction) {
+        self.write_reg(instruction.rd(), self.lo);
+    }
+
+    /// 00.13 - MTLO - R-Type
+    /// MTLO rs
+    /// LO = GPR[rs]
+    pub(super) fn ins_mtlo(&mut self, instruction: Instruction) {
+        self.lo = self.get_rs(instruction);
+    }
+
+    /// 00.18 - MULT - R-Type
+    /// MULT rs, rt
+    /// result = sign_extended64(GPR[rs]) * sign_extended64(GPR[rt])
+    /// HI = result[63:32]
+    /// LO = result[31:0]
+    pub(super) fn ins_mult(&mut self, instruction: Instruction) {
+        let rs = self.get_rs(instruction) as i32 as i64;
+        let rt = self.get_rt(instruction) as i32 as i64;
+        let result = rs.wrapping_mul(rt);
+
+        self.hi = (result >> 32) as u32;
+        self.lo = result as u32;
+    }
+
+    /// 00.19 - MULTU - R-Type
+    /// MULTU rs, rt
+    /// result = GPR[rs] * GPR[rt]
+    /// HI = result[63:32]
+    /// LO = result[31:0]
+    pub(super) fn ins_multu(&mut self, instruction: Instruction) {
+        let rs = self.get_rs(instruction) as u64;
+        let rt = self.get_rt(instruction) as u64;
+        let result = rs.wrapping_mul(rt);
+
+        self.hi = (result >> 32) as u32;
+        self.lo = result as u32;
+    }
+
+    /// 00.1A - DIV - R-Type
+    /// DIV rs, rt
+    /// HI = GPR[rs] % GPR[rt]
+    /// LO = GPR[rs] / GPR[rt]
+    pub(super) fn ins_div(&mut self, instruction: Instruction) {
+        let dividend = self.get_rs(instruction) as i32;
+        let divisor = self.get_rt(instruction) as i32;
+
+        if divisor == 0 {
+            self.hi = dividend as u32;
+            if dividend >= 0 {
+                self.lo = 0xffff_ffff;
+            } else {
+                self.lo = 1;
+            }
+        } else if dividend as u32 == 0x8000_0000 && divisor == -1 {
+            self.hi = 0;
+            self.lo = 0x8000_0000;
+        } else {
+            self.hi = (dividend % divisor) as u32;
+            self.lo = (dividend / divisor) as u32;
+        }
+    }
+
+    /// 00.1B - DIVU - R-Type
+    /// DIVU rs, rt
+    /// HI = GPR[rs] % GPR[rt]
+    /// LO = GPR[rs] / GPR[rt]
+    pub(super) fn ins_divu(&mut self, instruction: Instruction) {
+        let dividend = self.get_rs(instruction);
+        let divisor = self.get_rt(instruction);
+
+        if divisor == 0 {
+            self.hi = dividend;
+            self.lo = 0xffff_ffff;
+        } else {
+            self.hi = dividend % divisor;
+            self.lo = dividend / divisor;
+        }
+    }
+
     /// 00.20 - ADD - R-Type
     /// ADD rd, rs, rt
     /// GPR[rd] = signed(GPR[rs]) + signed(GPR[rt])
@@ -91,6 +188,154 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use crate::cpu::test_utils::*;
+
+    #[test]
+    fn test_mfhi() {
+        let mut cpu = test_cpu(&[], &[0x00000010, 0x00000810]);
+        cpu.hi = 0x1234_5678;
+
+        cpu_steps(&mut cpu, 2);
+
+        assert_eq!(cpu.registers[0], 0); // ignore write to r0
+        assert_eq!(cpu.registers[1], 0x1234_5678);
+    }
+
+    #[test]
+    fn test_mthi() {
+        let mut cpu = test_cpu(&[(7, 0x1234_5678)], &[0x00e00011]);
+        cpu.hi = 0xdead_beef;
+
+        cpu_steps(&mut cpu, 1);
+        assert_eq!(cpu.hi, 0x1234_5678);
+    }
+
+    #[test]
+    fn test_mflo() {
+        let mut cpu = test_cpu(&[], &[0x00000012, 0x00000812]);
+        cpu.lo = 0x1234_5678;
+
+        cpu_steps(&mut cpu, 2);
+
+        assert_eq!(cpu.registers[0], 0);
+        assert_eq!(cpu.registers[1], 0x1234_5678);
+    }
+
+    #[test]
+    fn test_mtlo() {
+        let mut cpu = test_cpu(&[(7, 0x1234_5678)], &[0x00e00013]);
+        cpu.lo = 0xdead_beef;
+
+        cpu_steps(&mut cpu, 1);
+        assert_eq!(cpu.lo, 0x1234_5678);
+    }
+
+    #[test]
+    fn test_mult() {
+        let mut cpu = test_cpu(&[(7, 2), (8, 3)], &[0x01070018, 0x01070018]);
+
+        cpu.step(); // MULT r7, r8
+
+        assert_eq!(cpu.hi, 0);
+        assert_eq!(cpu.lo, 6);
+
+        cpu.registers[7] = 0x8000_0002; // this gets sign-extended
+        cpu.registers[8] = 4;
+
+        cpu.step(); // MULT r7, r8
+
+        assert_eq!(cpu.hi, 0xffff_fffe); // the result is negative
+        assert_eq!(cpu.lo, 8);
+    }
+
+    #[test]
+    fn test_multu() {
+        let mut cpu = test_cpu(&[(7, 2), (8, 3)], &[0x01070019, 0x01070019]);
+
+        cpu.step(); // MULTU r7, r8
+
+        assert_eq!(cpu.hi, 0);
+        assert_eq!(cpu.lo, 6);
+
+        cpu.registers[7] = 0x8000_0002; // this does not get sign-extended
+        cpu.registers[8] = 4;
+
+        cpu.step(); // MULTU r7, r8
+
+        assert_eq!(cpu.hi, 2); // the result is positive
+        assert_eq!(cpu.lo, 8);
+    }
+
+    #[test]
+    fn test_div() {
+        let mut cpu = test_cpu(
+            &[(7, 2), (8, 3)],
+            &[0x0107001a, 0x0107001a, 0x0107001a, 0x0107001a, 0x0107001a],
+        );
+
+        cpu.step();
+
+        assert_eq!(cpu.hi, 1);
+        assert_eq!(cpu.lo, 1);
+
+        cpu.registers[7] = -1i32 as u32;
+        cpu.registers[8] = 0x8000_0002; // this gets sign-extended
+
+        cpu.step();
+
+        assert_eq!(cpu.hi, 0);
+        assert_eq!(cpu.lo, 0x7fff_fffe);
+
+        cpu.registers[7] = 0;
+        cpu.registers[8] = 5;
+
+        cpu.step();
+
+        assert_eq!(cpu.hi, 5);
+        assert_eq!(cpu.lo, 0xffff_ffff);
+
+        cpu.registers[7] = 0;
+        cpu.registers[8] = -5i32 as u32;
+
+        cpu.step();
+
+        assert_eq!(cpu.hi, -5i32 as u32);
+        assert_eq!(cpu.lo, 1);
+
+        cpu.registers[7] = -1i32 as u32;
+        cpu.registers[8] = 0x8000_0000; // largest negative number
+
+        cpu.step();
+
+        assert_eq!(cpu.hi, 0);
+        assert_eq!(cpu.lo, 0x8000_0000);
+    }
+
+    #[test]
+    fn test_divu() {
+        let mut cpu =
+            test_cpu(&[(7, 2), (8, 3)], &[0x0107001b, 0x0107001b, 0x0107001b]);
+
+        cpu.step(); // DIVU r7, r8
+
+        assert_eq!(cpu.hi, 1);
+        assert_eq!(cpu.lo, 1);
+
+        cpu.registers[7] = -1i32 as u32;
+        cpu.registers[8] = 0x8000_0002; // this does not get sign-extended
+
+        cpu.step(); // DIVU r7, r8
+
+        assert_eq!(cpu.hi, 0x80000002);
+        assert_eq!(cpu.lo, 0);
+
+        cpu.registers[7] = 0;
+        cpu.registers[8] = 5;
+
+        cpu.step(); // DIVU r7, r8
+
+        assert_eq!(cpu.hi, 5);
+        assert_eq!(cpu.lo, 0xffff_ffff);
+    }
 
     #[test]
     fn test_add() {

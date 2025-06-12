@@ -19,6 +19,8 @@ const NUM_REGISTERS: usize = 32;
 /// The emulated PS1 CPU
 pub struct Cpu {
     pub registers: [u32; NUM_REGISTERS],
+    pub hi: u32,
+    pub lo: u32,
     pub pc: u32,
 
     pub ram: Ram,
@@ -28,6 +30,8 @@ impl Cpu {
     pub fn new() -> Self {
         Cpu {
             registers: [0; NUM_REGISTERS],
+            hi: 0,
+            lo: 0,
             pc: 0,
             ram: Ram::new(),
         }
@@ -65,6 +69,14 @@ impl Cpu {
                 0x04 => self.ins_sllv(instruction),
                 0x06 => self.ins_srlv(instruction),
                 0x07 => self.ins_srav(instruction),
+                0x10 => self.ins_mfhi(instruction),
+                0x11 => self.ins_mthi(instruction),
+                0x12 => self.ins_mflo(instruction),
+                0x13 => self.ins_mtlo(instruction),
+                0x18 => self.ins_mult(instruction),
+                0x19 => self.ins_multu(instruction),
+                0x1a => self.ins_div(instruction),
+                0x1b => self.ins_divu(instruction),
                 0x20 => self.ins_add(instruction),
                 0x21 => self.ins_addu(instruction),
                 0x22 => self.ins_sub(instruction),
