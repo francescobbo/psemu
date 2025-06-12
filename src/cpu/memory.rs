@@ -24,7 +24,11 @@ enum MipsSegment {
 
 impl Cpu {
     /// Performs a memory read operation.
-    pub fn read_memory(&self, address: u32, size: AccessSize) -> Result<u32, MemoryError> {
+    pub fn read_memory(
+        &mut self,
+        address: u32,
+        size: AccessSize,
+    ) -> Result<u32, MemoryError> {
         Self::check_alignment(address, size)?;
 
         let (segment, phys_addr) = self.extract_segment(address);
@@ -117,7 +121,10 @@ impl Cpu {
 
     /// Checks if the address is aligned for the given size.
     /// Returns a MemoryError if the address is not aligned.
-    fn check_alignment(address: u32, size: AccessSize) -> Result<(), MemoryError> {
+    fn check_alignment(
+        address: u32,
+        size: AccessSize,
+    ) -> Result<(), MemoryError> {
         match size {
             AccessSize::Byte => Ok(()), // Bytes are always aligned
             AccessSize::HalfWord => {

@@ -1,5 +1,9 @@
 use crate::{
-    gpu::Gpu, interrupts::{InterruptController, INTERRUPTS_BASE, INTERRUPTS_END}, ram::{self, Ram}, rom::{self, Rom}, scratchpad::Scratchpad
+    gpu::Gpu,
+    interrupts::{INTERRUPTS_BASE, INTERRUPTS_END, InterruptController},
+    ram::{self, Ram},
+    rom::{self, Rom},
+    scratchpad::Scratchpad,
 };
 
 /// Represents the possible access sizes for memory operations.
@@ -36,7 +40,9 @@ pub struct Bus {
     dram_control: u32,
 
     /// The scratchpad RAM, which is 1KB in size.
-    pub scratchpad: Scratchpad
+    pub scratchpad: Scratchpad,
+
+    pub joy: crate::joy::Joy,
 }
 
 const BIU_CONTROL_BASE: u32 = 0x1f80_1000;
@@ -49,7 +55,6 @@ const DRAM_CONTROL_END: u32 = DRAM_CONTROL_BASE + DRAM_CONTROL_SIZE - 1;
 
 const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f000000, 0x1f7fffff, "Exp1"),
-    (0x1f801040, 0x1f80104f, "Joypad"),
     (0x1f801050, 0x1f80105f, "Serial"),
     (0x1f801080, 0x1f8010ff, "DMA"),
     (0x1f801100, 0x1f80112f, "Timers"),
@@ -71,14 +76,16 @@ impl Bus {
             biu_control: [0; 9],
             dram_control: 0,
             scratchpad: Scratchpad::new(),
+
+            joy: crate::joy::Joy::new(),
         }
     }
 
     /// Performs a read operation on the bus.
-    pub fn read(&self, address: u32, size: AccessSize) -> Result<u32, ()> {
+    pub fn read(&mut self, address: u32, size: AccessSize) -> Result<u32, ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                // println!("[{name}] Reading ({size:?}) at {address:08x}");
+                println!("[{name}] Reading ({size:?}) at {address:08x}");
                 return Ok(0);
             }
         }
@@ -99,6 +106,7 @@ impl Bus {
 
                 Ok(self.gpu.read(address))
             }
+            0x1f801040..=0x1f80104f => Ok(self.joy.read(address)),
             BIU_CONTROL_BASE..=BIU_CONTROL_END => {
                 assert!(
                     size == AccessSize::Word,
@@ -116,7 +124,9 @@ impl Bus {
 
                 Ok(self.dram_control)
             }
-            INTERRUPTS_BASE..=INTERRUPTS_END => Ok(self.interrupts.read(address, size)),
+            INTERRUPTS_BASE..=INTERRUPTS_END => {
+                Ok(self.interrupts.read(address, size))
+            }
             _ => {
                 println!("[Bus] Read error: address {address:#x} out of range");
                 Err(())
@@ -125,17 +135,31 @@ impl Bus {
     }
 
     /// Performs a write operation on the bus.
-    pub fn write(&mut self, address: u32, value: u32, size: AccessSize) -> Result<(), ()> {
+    pub fn write(
+        &mut self,
+        address: u32,
+        value: u32,
+        size: AccessSize,
+    ) -> Result<(), ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                println!("[{name}] Writing {value:x} ({size:?}) at {address:08x}");
+                println!(
+                    "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
+                );
                 return Ok(());
             }
         }
 
         match address {
-            ram::RAM_BASE..=ram::RAM_END => self.ram.write(address, value, size),
-            rom::ROM_BASE..=rom::ROM_END => self.rom.write(address, value, size),
+            ram::RAM_BASE..=ram::RAM_END => {
+                self.ram.write(address, value, size)
+            }
+            rom::ROM_BASE..=rom::ROM_END => {
+                self.rom.write(address, value, size)
+            }
+            0x1f801040..=0x1f80104f => {
+                self.joy.write(address, value);
+            }
             0x1f80_0000..=0x1f80_03ff => {
                 // Scratchpad RAM
                 self.scratchpad.write(address, value, size);
@@ -165,7 +189,9 @@ impl Bus {
                 self.interrupts.write(address, value, size);
             }
             _ => {
-                println!("[Bus] Write error: {value:x} @ address {address:#x} out of range");
+                println!(
+                    "[Bus] Write error: {value:x} @ address {address:#x} out of range"
+                );
                 return Err(());
             }
         }

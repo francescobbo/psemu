@@ -38,7 +38,9 @@ impl Cpu {
     /// MTC0 rt, rd
     /// COP0[rd] = GPR[rt]
     pub(super) fn ins_mtc0(&mut self, instruction: Instruction) {
-        if let Err(_) = self.cop0.write(instruction.rd(), self.get_rt(instruction)) {
+        if let Err(_) =
+            self.cop0.write(instruction.rd(), self.get_rt(instruction))
+        {
             panic!("Invalid COP0 register write: {}", instruction.rd());
         }
     }

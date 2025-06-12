@@ -106,7 +106,10 @@ impl Cpu {
     pub(super) fn ins_slt(&mut self, instruction: Instruction) {
         let rs_value = self.get_rs(instruction) as i32;
         let rt_value = self.get_rt(instruction) as i32;
-        self.write_reg(instruction.rd(), if rs_value < rt_value { 1 } else { 0 });
+        self.write_reg(
+            instruction.rd(),
+            if rs_value < rt_value { 1 } else { 0 },
+        );
     }
 
     /// 00.2B - SLTU - R-Type

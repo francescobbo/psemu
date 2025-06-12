@@ -31,7 +31,7 @@ impl Scratchpad {
     /// Performs a write operation to the SCRATCHPAD, of size 1, 2, or 4 bytes.
     pub fn write(&mut self, address: u32, value: u32, size: AccessSize) {
         let address = address - SCRATCHPAD_BASE;
-        
+
         match size {
             AccessSize::Byte => self.write8(address, value as u8),
             AccessSize::HalfWord => self.write16(address, value as u16),
@@ -44,7 +44,8 @@ impl Scratchpad {
     }
 
     fn read16(&self, address: u32) -> u16 {
-        let bytes = [self.data[address as usize], self.data[address as usize + 1]];
+        let bytes =
+            [self.data[address as usize], self.data[address as usize + 1]];
 
         u16::from_le_bytes(bytes)
     }

@@ -134,7 +134,12 @@ impl Cop0 {
     ///
     /// The `bds` parameter indicates whether the exception occurred in a
     /// branch delay slot.
-    pub fn start_exception(&mut self, cause: ExceptionCause, pc: u32, bds: bool) -> u32 {
+    pub fn start_exception(
+        &mut self,
+        cause: ExceptionCause,
+        pc: u32,
+        bds: bool,
+    ) -> u32 {
         // Copy the low 4 bits into bits 6-4 of the Status Register
         self.status.set_low_fields(self.status.low_fields() << 2);
 

@@ -40,7 +40,8 @@ impl Ram {
     }
 
     fn read16(&self, address: u32) -> u16 {
-        let bytes = [self.data[address as usize], self.data[address as usize + 1]];
+        let bytes =
+            [self.data[address as usize], self.data[address as usize + 1]];
 
         u16::from_le_bytes(bytes)
     }

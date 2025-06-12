@@ -1,9 +1,9 @@
-use crate::{
-    cpu::Cpu,
-    bus::AccessSize,
-};
+use crate::{bus::AccessSize, cpu::Cpu};
 use rustyline::{DefaultEditor, error::ReadlineError};
-use std::{collections::HashSet, sync::{atomic::AtomicBool, Arc}};
+use std::{
+    collections::HashSet,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 #[derive(Debug)]
 pub struct Debugger {
@@ -23,9 +23,10 @@ pub struct Debugger {
 }
 
 const REGISTERS: [&str; 32] = [
-    "$zero", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", "$t0", "$t1", "$t2", "$t3", "$t4",
-    "$t5", "$t6", "$t7", "$s0", "$s1", "$s2", "$s3", "$s4", "$s5", "$s6", "$s7", "$t8", "$t9",
-    "$k0", "$k1", "$gp", "$sp", "$fp", "$ra",
+    "$zero", "$at", "$v0", "$v1", "$a0", "$a1", "$a2", "$a3", "$t0", "$t1",
+    "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$s0", "$s1", "$s2", "$s3",
+    "$s4", "$s5", "$s6", "$s7", "$t8", "$t9", "$k0", "$k1", "$gp", "$sp",
+    "$fp", "$ra",
 ];
 
 const HISTORY_FILE: &str = ".dbg_history";
@@ -55,7 +56,11 @@ impl Debugger {
             "[{:08x}] {}  {}",
             cpu.pc,
             if is_branch_delay_slot { "D" } else { " " },
-            self.disasm.disasm_with_context(ins, cpu.pc.wrapping_add(4), &cpu.registers)
+            self.disasm.disasm_with_context(
+                ins,
+                cpu.pc.wrapping_add(4),
+                &cpu.registers
+            )
         );
 
         loop {
@@ -86,6 +91,22 @@ impl Debugger {
                 // Show the registers
                 "r" | "registers" => {
                     Self::print_registers(cpu);
+                }
+                "dump-mem" => {
+                    let mut ram: Vec<u8> = vec![0; 2 * 1024 * 1024]; // 2 MiB of RAM
+                    for i in 0..(ram.len()) {
+                        let value = cpu
+                            .read_memory(i as u32, AccessSize::Byte)
+                            .unwrap();
+                        ram[i] = value as u8;
+                    }
+
+                    // write to a file
+                    let file_path = "ram_dump.bin";
+                    match std::fs::write(file_path, ram) {
+                        Ok(_) => println!("Memory dumped to {}", file_path),
+                        Err(e) => println!("Error writing memory dump: {}", e),
+                    }
                 }
                 // Read memory
                 "rm" | "read-mem" => {
@@ -211,7 +232,7 @@ impl Debugger {
 
     /// Prints the contents of a memory location, as a little endian 32-bit
     /// integer
-    pub fn read_memory(cpu: &Cpu, address: u32) {
+    pub fn read_memory(cpu: &mut Cpu, address: u32) {
         match cpu.read_memory(address, AccessSize::Word) {
             Ok(value) => println!("{address:08x}: {value:08x}"),
             Err(_) => println!("Error reading memory at address {address:08x}"),
@@ -229,9 +250,10 @@ impl Debugger {
             return true;
         }
 
-        if self.triggered.load(std::sync::atomic::Ordering::Relaxed) {
+        if self.triggered.load(std::sync::atomic::Ordering::SeqCst) {
             // If the triggered flag is set, we should break
-            self.triggered.store(false, std::sync::atomic::Ordering::Relaxed);
+            self.triggered
+                .store(false, std::sync::atomic::Ordering::SeqCst);
             return true;
         }
 

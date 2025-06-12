@@ -26,7 +26,10 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(args: MainArguments, event_loop_proxy: EventLoopProxy<AppEvent>) -> Self {
+    pub fn new(
+        args: MainArguments,
+        event_loop_proxy: EventLoopProxy<AppEvent>,
+    ) -> Self {
         // Create a new emulator instance
         let mut emulator = Emulator::new();
 
@@ -41,7 +44,8 @@ impl App {
         if let Some(path) = &args.executable {
             emulator.run_until(0x80030000); // Run until the BIOS entry point
 
-            let exe = Executable::load(path).expect("Failed to load executable");
+            let exe =
+                Executable::load(path).expect("Failed to load executable");
 
             // Load the executable into the CPU
             exe.load_into(&mut emulator.cpu);
@@ -78,7 +82,8 @@ impl ApplicationHandler<AppEvent> for App {
         window.request_redraw();
 
         let window_size = window.inner_size();
-        let surface_texture = SurfaceTexture::new(window_size.width, window_size.height, window);
+        let surface_texture =
+            SurfaceTexture::new(window_size.width, window_size.height, window);
 
         self.pixels = Some(
             Pixels::new(INITIAL_WIDTH, INITIAL_HEIGHT, surface_texture)

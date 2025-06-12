@@ -49,10 +49,6 @@ pub struct Cpu {
     /// persisted at the end of the current cycle.
     pub current_load_delay: Option<DelayedLoad>,
 
-    /// The index of the register written to in the current cycle, if any.
-    /// This is used to ignore the load delay writeback
-    pub last_written_register: usize,
-
     /// The BIU/Cache Control Register
     pub biu_cache_control: u32,
 
@@ -81,7 +77,6 @@ impl Cpu {
             current_branch_target: None,
             load_delay: None,
             current_load_delay: None,
-            last_written_register: 0,
             biu_cache_control: 0,
             cop0: control::Cop0::new(),
         }
@@ -105,7 +100,11 @@ impl Cpu {
             Ok(value) => value,
             Err(err) => {
                 // If we failed to fetch the instruction, we handle the error
-                self.memory_access_exception(err, AccessType::InstructionFetch, self.pc);
+                self.memory_access_exception(
+                    err,
+                    AccessType::InstructionFetch,
+                    self.pc,
+                );
                 return;
             }
         };
@@ -130,7 +129,10 @@ impl Cpu {
     }
 
     /// Fetch the instruction from the given address.
-    fn fetch_instruction(&self, address: u32) -> Result<Instruction, MemoryError> {
+    fn fetch_instruction(
+        &mut self,
+        address: u32,
+    ) -> Result<Instruction, MemoryError> {
         Ok(Instruction(self.read_memory(address, AccessSize::Word)?))
     }
 
@@ -179,12 +181,24 @@ impl Cpu {
                 }
             }
             0x01 => {
+                let link = instruction.rt() & 0x1e == 0x10;
+
                 // This format abuses the `rt` field for a sub-opcode
-                match instruction.rt() {
-                    0x00 => self.ins_bltz(instruction),
-                    0x01 => self.ins_bgez(instruction),
-                    0x10 => self.ins_bltzal(instruction),
-                    0x11 => self.ins_bgezal(instruction),
+                match instruction.rt() & 1 {
+                    0 => {
+                        if link {
+                            self.ins_bltzal(instruction);
+                        } else {
+                            self.ins_bltz(instruction);
+                        }
+                    }
+                    1 => {
+                        if link {
+                            self.ins_bgezal(instruction);
+                        } else {
+                            self.ins_bgez(instruction);
+                        }
+                    }
                     _ => {
                         println!(
                             "Unimplemented funct: {:02x} @ {:08x}",
@@ -219,7 +233,10 @@ impl Cpu {
                         2 => self.ins_cfc0(instruction),
                         4 => self.ins_mtc0(instruction),
                         6 => self.ins_ctc0(instruction),
-                        _ => panic!("Unimplemented cop0 funct: {:#x}", instruction.rs()),
+                        _ => panic!(
+                            "Unimplemented cop0 funct: {:#x}",
+                            instruction.rs()
+                        ),
                     }
                 }
             }
@@ -273,28 +290,17 @@ impl Cpu {
             return;
         }
 
+        self.cancel_delayed_load(index);
         self.registers[index] = value;
-
-        // Remember that we wrote to this register in the current cycle
-        self.last_written_register = index;
     }
 
     /// Completes a delayed load operation, unless it was started in the same
     /// cycle. Otherwise it marks the load for writeback in the next cycle.
     fn handle_load_delay(&mut self) {
         if let Some(load) = self.current_load_delay.take() {
-            // Check if the last instruction was a direct write to the same register
-            if self.last_written_register == load.target {
-                // Ignore the load
-                return;
-            }
-
             // Write the value to the target register
             self.registers[load.target] = load.value;
         }
-
-        // Reset the last written register for the next cycle
-        self.last_written_register = 0;
     }
 
     pub(super) fn exception(&mut self, cause: ExceptionCause) {
@@ -303,8 +309,10 @@ impl Cpu {
         // If there was a branch target, we ignore it
         self.current_branch_target = None;
 
-        self.pc = self
-            .cop0
-            .start_exception(cause, self.pc.wrapping_sub(4), is_branch_delay_slot);
+        self.pc = self.cop0.start_exception(
+            cause,
+            self.pc.wrapping_sub(4),
+            is_branch_delay_slot,
+        );
     }
 }
