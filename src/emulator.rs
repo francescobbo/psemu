@@ -4,20 +4,13 @@ use winit::event_loop::EventLoopProxy;
 
 use crate::app::AppEvent;
 use crate::cpu::Cpu;
-use crate::debug::Debugger;
+use crate::debugger::Debugger;
 
 pub struct Emulator {
     pub cpu: Cpu,
     pub debugger: Debugger,
-}
 
-fn rainbow_rgb(i: f32) -> (u8, u8, u8) {
-    let frequency = 0.3;
-    let red = (i * frequency).sin() * 127.0 + 128.0;
-    let green = (i * frequency + 2.0).sin() * 127.0 + 128.0;
-    let blue = (i * frequency + 4.0).sin() * 127.0 + 128.0;
-
-    (red as u8, green as u8, blue as u8)
+    pub cycles: u64,
 }
 
 impl Emulator {
@@ -32,7 +25,11 @@ impl Emulator {
         })
         .expect("Error setting Ctrl-C handler");
 
-        Emulator { cpu, debugger }
+        Emulator {
+            cpu,
+            debugger,
+            cycles: 0,
+        }
     }
 
     pub fn run_threaded(
@@ -123,6 +120,9 @@ impl Emulator {
             .cop0
             .set_hardware_interrupt(self.cpu.bus.interrupts.should_interrupt());
         self.cpu.step();
+
+        self.cycles += 1;
+
         false
     }
 }

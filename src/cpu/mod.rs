@@ -3,6 +3,7 @@ mod branch;
 mod control;
 mod control_types;
 mod cop;
+mod gte;
 mod instruction;
 mod load_store;
 mod logic;
@@ -184,29 +185,12 @@ impl Cpu {
                 let link = instruction.rt() & 0x1e == 0x10;
 
                 // This format abuses the `rt` field for a sub-opcode
-                match instruction.rt() & 1 {
-                    0 => {
-                        if link {
-                            self.ins_bltzal(instruction);
-                        } else {
-                            self.ins_bltz(instruction);
-                        }
-                    }
-                    1 => {
-                        if link {
-                            self.ins_bgezal(instruction);
-                        } else {
-                            self.ins_bgez(instruction);
-                        }
-                    }
-                    _ => {
-                        println!(
-                            "Unimplemented funct: {:02x} @ {:08x}",
-                            instruction.rt(),
-                            self.pc - 4
-                        );
-                        self.exception(ExceptionCause::ReservedInstruction);
-                    }
+                match (instruction.rt() & 1, link) {
+                    (0, false) => self.ins_bltz(instruction),
+                    (0, true) => self.ins_bltzal(instruction),
+                    (1, false) => self.ins_bgez(instruction),
+                    (1, true) => self.ins_bgezal(instruction),
+                    _ => unreachable!(),
                 }
             }
             0x02 => self.ins_j(instruction),

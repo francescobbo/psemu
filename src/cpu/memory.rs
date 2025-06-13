@@ -7,7 +7,7 @@ pub enum MemoryError {
     BusError,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum AccessType {
     Read,
     Write,

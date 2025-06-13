@@ -113,8 +113,10 @@ impl Executable {
         cpu.registers[28] = self.header.gp;
 
         // Set the stack pointer (R29) and frame pointer (R30)
-        cpu.registers[29] = self.header.sp_fp;
-        cpu.registers[30] = self.header.sp_fp;
+        if self.header.sp_fp != 0 {
+            cpu.registers[29] = self.header.sp_fp;
+            cpu.registers[30] = self.header.sp_fp;
+        }
 
         // Load the program into RAM
         let start_address = self.header.load_address;

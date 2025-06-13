@@ -1,7 +1,8 @@
 mod app;
 mod bus;
 mod cpu;
-mod debug;
+mod debugger;
+mod dma;
 mod emulator;
 mod executable;
 mod gpu;

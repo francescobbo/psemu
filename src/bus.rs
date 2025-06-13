@@ -1,4 +1,5 @@
 use crate::{
+    dma::{ChannelLink, Direction, Dma, SyncMode},
     gpu::Gpu,
     interrupts::{INTERRUPTS_BASE, INTERRUPTS_END, InterruptController},
     ram::{self, Ram},
@@ -21,6 +22,7 @@ pub struct Bus {
     pub ram: Ram,
     pub rom: Rom,
     pub gpu: Gpu,
+    pub dma: Dma,
 
     pub interrupts: InterruptController,
 
@@ -56,7 +58,6 @@ const DRAM_CONTROL_END: u32 = DRAM_CONTROL_BASE + DRAM_CONTROL_SIZE - 1;
 const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f000000, 0x1f7fffff, "Exp1"),
     (0x1f801050, 0x1f80105f, "Serial"),
-    (0x1f801080, 0x1f8010ff, "DMA"),
     (0x1f801100, 0x1f80112f, "Timers"),
     (0x1f801800, 0x1f801803, "CD-ROM"),
     (0x1f801820, 0x1f801827, "MDEC"),
@@ -72,6 +73,7 @@ impl Bus {
             ram: Ram::new(),
             rom: Rom::new(),
             gpu: Gpu::new(),
+            dma: Dma::new(),
             interrupts: InterruptController::new(),
             biu_control: [0; 9],
             dram_control: 0,
@@ -85,7 +87,7 @@ impl Bus {
     pub fn read(&mut self, address: u32, size: AccessSize) -> Result<u32, ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                println!("[{name}] Reading ({size:?}) at {address:08x}");
+                // println!("[{name}] Reading ({size:?}) at {address:08x}");
                 return Ok(0);
             }
         }
@@ -115,6 +117,9 @@ impl Bus {
 
                 let index = (address - BIU_CONTROL_BASE) as usize / 4;
                 Ok(self.biu_control[index])
+            }
+            0x1f80_1080..=0x1f80_10f4 => {
+                Ok(self.dma.read(address - 0x1f80_1080, size))
             }
             DRAM_CONTROL_BASE..=DRAM_CONTROL_END => {
                 assert!(
@@ -164,6 +169,10 @@ impl Bus {
                 // Scratchpad RAM
                 self.scratchpad.write(address, value, size);
             }
+            0x1f80_1080..=0x1f80_10f4 => {
+                self.dma.write(address - 0x1f80_1080, value, size);
+                self.handle_dma_write();
+            }
             0x1f801810..=0x1f801817 => {
                 // GPU registers
                 assert!(
@@ -197,5 +206,153 @@ impl Bus {
         }
 
         Ok(())
+    }
+
+    fn handle_dma_write(&mut self) {
+        if let Some(active_channel) = self.dma.active_channel() {
+            let step = active_channel.step();
+            let mut addr = active_channel.base();
+
+            let (blocks, block_size) = active_channel.transfer_size();
+
+            match active_channel.sync_mode() {
+                SyncMode::Immediate => match active_channel.link() {
+                    ChannelLink::Otc => {
+                        let mut remaining_words = block_size;
+                        println!(
+                            "[DMA6] OTC -> RAM @ 0x{:08x}, block, count: 0x{:04x}\n",
+                            addr, remaining_words
+                        );
+                        while remaining_words > 0 {
+                            match active_channel.direction() {
+                                Direction::FromRam => {
+                                    panic!("Cannot OTC from RAM");
+                                }
+                                Direction::ToRam => {
+                                    let word = match remaining_words {
+                                        1 => 0xff_ffff,
+                                        _ => {
+                                            addr.wrapping_add(step as u32)
+                                                & 0x1f_fffc
+                                        }
+                                    };
+                                    self.ram.write(
+                                        addr,
+                                        word,
+                                        AccessSize::Word,
+                                    );
+                                }
+                            }
+                            addr = addr.wrapping_add(step as u32) & 0x1f_fffc;
+                            remaining_words -= 1;
+                        }
+                        active_channel.done();
+                        // if let Some(d) = &self.debug_tx {
+                        //     d.send(true);
+                        // }
+                    }
+                    ChannelLink::Cdrom => {
+                        let mut remaining_words = block_size * blocks;
+                        while remaining_words > 0 {
+                            match active_channel.direction() {
+                                Direction::ToRam => {
+                                    // let value = self.cdrom.read::<1>(2).0
+                                    //     | self.cdrom.read::<1>(2).0 << 8
+                                    //     | self.cdrom.read::<1>(2).0 << 16
+                                    //     | self.cdrom.read::<1>(2).0 << 24;
+                                    // self.ram.write::<4>(addr, value);
+                                    // addr = addr.wrapping_add(4);
+                                    // remaining_words -= 1;
+                                    unimplemented!(
+                                        "CDROM DMA write not implemented yet"
+                                    );
+                                }
+                                Direction::FromRam => {
+                                    panic!("Writing to CDROM? Not happening");
+                                }
+                            }
+                        }
+                        active_channel.done();
+                    }
+                    _ => {
+                        panic!(
+                            "Cannot handle link {:?}",
+                            active_channel.link()
+                        );
+                    }
+                },
+                SyncMode::LinkedList => {
+                    match active_channel.link() {
+                        ChannelLink::Gpu => {
+                            loop {
+                                match active_channel.direction() {
+                                    Direction::FromRam => {
+                                        let header = self
+                                            .ram
+                                            .read(addr, AccessSize::Word);
+                                        let word_count = header >> 24;
+
+                                        // if word_count > 0 {
+                                        //     println!("[DMA2] GPU <- RAM @ 0x{:08x}, count: {},
+                                        // nextAddr: 0x{:08x}",
+                                        //     addr, word_count, header);
+                                        // }
+
+                                        for _ in 0..word_count {
+                                            addr =
+                                                addr.wrapping_add(step as u32);
+                                            let cmd = self
+                                                .ram
+                                                .read(addr, AccessSize::Word);
+                                            self.gpu.write(0x1f80_1810, cmd);
+                                        }
+
+                                        addr = header & 0xffffff;
+                                        if addr == 0xffffff {
+                                            break;
+                                        }
+                                    }
+                                    Direction::ToRam => {
+                                        panic!("Cannot DMA2-GPU to ram");
+                                    }
+                                }
+                            }
+                            active_channel.done();
+                        }
+                        _ => {
+                            panic!("Linked list is for gpu only");
+                        }
+                    }
+                }
+                SyncMode::Sync => match active_channel.link() {
+                    ChannelLink::Gpu => {
+                        for _ in 0..(blocks * block_size) as usize {
+                            match active_channel.direction() {
+                                Direction::FromRam => {
+                                    let value =
+                                        self.ram.read(addr, AccessSize::Word);
+                                    self.gpu.write(0x1f80_1810, value);
+                                    addr = addr.wrapping_add(step as u32);
+                                }
+                                Direction::ToRam => {
+                                    panic!("Cannot DMA2-GPU to ram");
+                                }
+                            }
+                        }
+                        active_channel.done();
+                    }
+                    _ => {
+                        panic!("Linked list is for gpu only");
+                    }
+                },
+                _ => {
+                    println!(
+                        "Unhandled sync mode {:?}",
+                        active_channel.sync_mode()
+                    );
+                    active_channel.done();
+                }
+            };
+        }
     }
 }
