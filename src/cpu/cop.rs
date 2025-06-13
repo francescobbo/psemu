@@ -1,4 +1,7 @@
-use crate::cpu::{Cpu, Instruction};
+use crate::{
+    bus::AccessSize,
+    cpu::{Cpu, Instruction, memory::AccessType},
+};
 
 use super::control_types::ExceptionCause;
 
@@ -51,5 +54,74 @@ impl Cpu {
     /// See `ins_cfc0`
     pub(super) fn ins_ctc0(&mut self, _instruction: Instruction) {
         panic!("CTC0 instruction is not supported on PS1");
+    }
+
+    /// 12.00 - MFC2 - R-Type (kind of)
+    /// MFC2 rt, rd
+    /// GPR[rt] = COP2[rd]
+    pub(super) fn ins_mfc2(&mut self, instruction: Instruction) {
+        if let Some(value) = self.gte.read(instruction.rd()) {
+            self.write_reg(instruction.rt(), value);
+        } else {
+            panic!("Invalid GTE register read: {}", instruction.rd());
+        }
+    }
+
+    /// 12.02 - CFC2 - R-Type (kind of)
+    /// CFC2 rt, rd
+    /// GPR[rt] = COP2[rd + 32]
+    pub(super) fn ins_cfc2(&mut self, instruction: Instruction) {
+        if let Some(value) = self.gte.read(instruction.rd() + 32) {
+            self.write_reg(instruction.rt(), value);
+        } else {
+            panic!("Invalid GTE register read: {}", instruction.rd());
+        }
+    }
+
+    /// 12.04 - MTC2 - R-Type (kind of)
+    /// MTC2 rt, rd
+    /// COP2[rd] = GPR[rt]
+    pub(super) fn ins_mtc2(&mut self, instruction: Instruction) {
+        if let Err(_) =
+            self.gte.write(instruction.rd(), self.get_rt(instruction))
+        {
+            panic!("Invalid GTE register write: {}", instruction.rd());
+        }
+    }
+
+    /// 12.06 - CTC2 - R-Type (kind of)
+    /// CTC2 rt, rd
+    /// COP2[rd + 32] = GPR[rt]
+    pub(super) fn ins_ctc2(&mut self, instruction: Instruction) {
+        if let Err(_) = self
+            .gte
+            .write(instruction.rd() + 32, self.get_rt(instruction))
+        {
+            panic!("Invalid GTE register write: {}", instruction.rd());
+        }
+    }
+
+    pub fn ins_lwc2(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
+        match self.read_memory(address, AccessSize::Word) {
+            Ok(value) => {
+                self.gte.write(instruction.rt(), value).unwrap();
+            }
+            Err(e) => {
+                self.memory_access_exception(e, AccessType::Read, address)
+            }
+        };
+    }
+
+    pub fn ins_swc2(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
+        let value = self.gte.read(instruction.rt()).unwrap();
+
+        match self.write_memory(address, value, AccessSize::Word) {
+            Ok(_) => {}
+            Err(e) => {
+                self.memory_access_exception(e, AccessType::Write, address)
+            }
+        }
     }
 }

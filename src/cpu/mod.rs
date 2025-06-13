@@ -55,6 +55,9 @@ pub struct Cpu {
 
     /// The COP0 coprocessor, which handles system control operations.
     pub cop0: control::Cop0,
+
+    // The COP2 coprocessor (the GTE), which handles graphics transformations.
+    pub gte: gte::Gte,
 }
 
 /// Represents a delayed load operation.
@@ -80,6 +83,7 @@ impl Cpu {
             current_load_delay: None,
             biu_cache_control: 0,
             cop0: control::Cop0::new(),
+            gte: gte::Gte::new(),
         }
     }
 
@@ -225,7 +229,23 @@ impl Cpu {
                 }
             }
             0x11 => panic!("COP1 is not present on PS1"),
-            0x12 => unimplemented!("GTE is not implemented yet"),
+            0x12 => {
+                if instruction.cop_execute() {
+                    // GTE instructions
+                    self.gte.execute(instruction);
+                } else {
+                    match instruction.cop_funct() {
+                        0 => self.ins_mfc2(instruction),
+                        2 => self.ins_cfc2(instruction),
+                        4 => self.ins_mtc2(instruction),
+                        6 => self.ins_ctc2(instruction),
+                        _ => panic!(
+                            "Unimplemented cop2 funct: {:#x}",
+                            instruction.rs()
+                        ),
+                    }
+                }
+            }
             0x13 => panic!("COP3 is not present on PS1"),
             0x20 => self.ins_lb(instruction),
             0x21 => self.ins_lh(instruction),
@@ -239,10 +259,12 @@ impl Cpu {
             0x2a => self.ins_swl(instruction),
             0x2b => self.ins_sw(instruction),
             0x2e => self.ins_swr(instruction),
+            0x32 => self.ins_lwc2(instruction),
+            0x3A => self.ins_swc2(instruction),
             _ => {
                 println!(
                     "Unimplemented opcode: {:02x} @ {:08x}",
-                    instruction.funct(),
+                    instruction.opcode(),
                     self.pc - 4
                 );
                 self.exception(ExceptionCause::ReservedInstruction);

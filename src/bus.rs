@@ -148,9 +148,9 @@ impl Bus {
     ) -> Result<(), ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                println!(
-                    "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
-                );
+                // println!(
+                //     "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
+                // );
                 return Ok(());
             }
         }
@@ -219,10 +219,10 @@ impl Bus {
                 SyncMode::Immediate => match active_channel.link() {
                     ChannelLink::Otc => {
                         let mut remaining_words = block_size;
-                        println!(
-                            "[DMA6] OTC -> RAM @ 0x{:08x}, block, count: 0x{:04x}\n",
-                            addr, remaining_words
-                        );
+                        // println!(
+                        //     "[DMA6] OTC -> RAM @ 0x{:08x}, block, count: 0x{:04x}\n",
+                        //     addr, remaining_words
+                        // );
                         while remaining_words > 0 {
                             match active_channel.direction() {
                                 Direction::FromRam => {
