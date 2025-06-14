@@ -6,9 +6,11 @@ edition = "2024"
 [dependencies]
 bitfield = "0.19"
 clap = { version = "4.0", features = ["derive"] }
+cpal = "0.16"
 ctrlc = "*"
 image = "0.24"
 pixels = "0.15"
 psdisasm = { path = "../psdisasm", version = "0.1.0" }
+ringbuf = "0.4.8"
 rustyline = "15.0.0"
 winit = "0.30"

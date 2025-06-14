@@ -1,6 +1,15 @@
+use cpal::{
+    StreamConfig,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
+};
 use std::sync::Arc;
 
 use pixels::{Pixels, SurfaceTexture};
+use ringbuf::{
+    HeapCons, SharedRb, StaticRb,
+    storage::Heap,
+    traits::{Consumer, Observer, RingBuffer, Split, SplitRef},
+};
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
@@ -23,7 +32,12 @@ pub enum AppEvent {
 pub struct App {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
+
+    output_device: Option<cpal::Device>,
+    sound_stream: Option<cpal::Stream>,
 }
+
+pub struct SoundFrame(pub f32, pub f32);
 
 impl App {
     pub fn new(
@@ -31,7 +45,7 @@ impl App {
         event_loop_proxy: EventLoopProxy<AppEvent>,
     ) -> Self {
         // Create a new emulator instance
-        let mut emulator = Emulator::new();
+        let (mut emulator, sample_consumer) = Emulator::new();
 
         // Set the debugger to be active if the user requested it
         emulator.debugger.steps = args.debug as usize;
@@ -55,10 +69,82 @@ impl App {
             Emulator::run_threaded(emulator, event_loop_proxy);
         });
 
-        Self {
+        let host = cpal::default_host();
+        let output_device = host.default_output_device();
+
+        let mut s = Self {
             window: None,
             pixels: None,
+            output_device: output_device,
+            sound_stream: None,
+        };
+
+        s.start_audio(sample_consumer);
+        s
+    }
+
+    fn start_audio(&mut self, mut sample_consumer: HeapCons<SoundFrame>) {
+        if self.output_device.is_none() {
+            eprintln!("No output device available for audio playback.");
+            return;
         }
+
+        let device = self.output_device.as_ref().unwrap();
+
+        let supported_config = device.default_output_config().unwrap();
+        let sample_format = supported_config.sample_format();
+        if sample_format != cpal::SampleFormat::F32 {
+            eprintln!("Unsupported sample format: {:?}", sample_format);
+            return;
+        }
+
+        let config: StreamConfig = supported_config.into();
+        let sample_rate = config.sample_rate.0 as f32;
+        if sample_rate != 44100.0 {
+            eprintln!(
+                "Unsupported sample rate: {}. Expected 44100Hz",
+                sample_rate
+            );
+            return;
+        }
+
+        let channels = config.channels as usize;
+
+        let stream = device
+            .build_output_stream(
+                &config,
+                move |output: &mut [f32], _: &cpal::OutputCallbackInfo| {
+                    // Fill output buffer with sine wave
+                    for frame in output.chunks_mut(channels) {
+                        if let Some(sound_frame) = sample_consumer.try_pop() {
+                            // Use the sound frame's value
+                            frame[0] = sound_frame.0; // Left channel
+                            frame[1] = sound_frame.1; // Right channel
+                        } else {
+                            // If no sound frame is available, fill with silence
+                            frame[0] = 0.0; // Left channel
+                            frame[1] = 0.0; // Right channel
+                        }
+                    }
+
+                    while !sample_consumer.is_empty() {
+                        // Drain any remaining sound frames
+                        sample_consumer.try_pop();
+                    }
+                },
+                |err| eprintln!("Audio error: {}", err),
+                None,
+            )
+            .unwrap();
+
+        // Start the audio stream
+        if let Err(e) = stream.play() {
+            eprintln!("Failed to start audio stream: {}", e);
+        } else {
+            println!("Audio stream started successfully.");
+        }
+
+        self.sound_stream = Some(stream);
     }
 }
 

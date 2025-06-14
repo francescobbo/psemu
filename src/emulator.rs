@@ -1,8 +1,12 @@
+use ringbuf::{HeapRb, traits::*};
 use std::sync::atomic::Ordering;
 
+use ringbuf::storage::Heap;
+use ringbuf::traits::{Producer, Split};
+use ringbuf::{HeapCons, HeapProd, SharedRb};
 use winit::event_loop::EventLoopProxy;
 
-use crate::app::AppEvent;
+use crate::app::{AppEvent, SoundFrame};
 use crate::cpu::Cpu;
 use crate::debugger::Debugger;
 
@@ -11,11 +15,14 @@ pub struct Emulator {
     pub debugger: Debugger,
 
     pub cycles: u64,
+
+    pub sample_producer: HeapProd<SoundFrame>,
+    pub phase: f32,
 }
 
 impl Emulator {
     /// Create a new emulator instance
-    pub fn new() -> Self {
+    pub fn new() -> (Self, HeapCons<SoundFrame>) {
         let cpu = Cpu::new();
         let debugger = Debugger::new();
         let breakpoint = debugger.triggered.clone();
@@ -24,11 +31,19 @@ impl Emulator {
         })
         .expect("Error setting Ctrl-C handler");
 
-        Emulator {
-            cpu,
-            debugger,
-            cycles: 0,
-        }
+        let rb = SharedRb::<Heap<SoundFrame>>::new(44100);
+        let (sample_producer, sample_consumer) = rb.split();
+
+        (
+            Emulator {
+                cpu,
+                debugger,
+                cycles: 0,
+                sample_producer,
+                phase: 0.0,
+            },
+            sample_consumer,
+        )
     }
 
     pub fn run_threaded(
@@ -120,6 +135,22 @@ impl Emulator {
         self.cpu.step();
 
         self.cycles += 1;
+
+        if self.cycles % 768 == 0 {
+            // Produce a sound frame every 768 cycles (approximately 44100 Hz)
+            // A sin wave at 440 Hz
+            self.phase += 2.0 * std::f32::consts::PI * 440.0 / 44100.0;
+            if self.phase > 2.0 * std::f32::consts::PI {
+                self.phase -= 2.0 * std::f32::consts::PI;
+            }
+            let sample = crate::app::SoundFrame(
+                (self.phase.sin() * 0.5) as f32, // Left channel
+                (self.phase.sin() * 0.5) as f32, // Right channel
+            );
+            if self.sample_producer.try_push(sample).is_err() {
+                eprintln!("Sound buffer is full, dropping samples");
+            }
+        }
 
         false
     }

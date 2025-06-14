@@ -359,11 +359,6 @@ impl Gpu {
                 self.tex_page_x = (texpage & 0xf) * 64; // X position
                 self.tex_page_y = ((texpage >> 4) & 0x1) * 256; // Y position
 
-                println!(
-                    "Texpage set to ({}, {})",
-                    self.tex_page_x, self.tex_page_y
-                );
-
                 let tx0 = (self.fifo[2] & 0xff) as usize; // Texture X position
                 let ty0 = ((self.fifo[2] >> 8) & 0xff) as usize; // Texture Y position
 
