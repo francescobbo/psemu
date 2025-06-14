@@ -34,7 +34,7 @@ impl App {
         let mut emulator = Emulator::new();
 
         // Set the debugger to be active if the user requested it
-        emulator.debugger.stepping = args.debug;
+        emulator.debugger.steps = args.debug as usize;
 
         // Load the BIOS data from file
         let bios = load_bios(args.bios);

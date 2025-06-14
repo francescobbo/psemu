@@ -7,7 +7,7 @@ pub enum MemoryError {
     BusError,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AccessType {
     Read,
     Write,
@@ -32,6 +32,8 @@ impl Cpu {
         Self::check_alignment(address, size)?;
 
         let (segment, phys_addr) = self.extract_segment(address);
+
+        self.last_memory_operation = (AccessType::Read, address);
 
         match segment {
             MipsSegment::Kuseg | MipsSegment::Kseg0 => {
@@ -79,6 +81,8 @@ impl Cpu {
         size: AccessSize,
     ) -> Result<(), MemoryError> {
         Self::check_alignment(address, size)?;
+
+        self.last_memory_operation = (AccessType::Write, address);
 
         let (segment, phys_addr) = self.extract_segment(address);
 

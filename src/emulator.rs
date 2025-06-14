@@ -20,7 +20,6 @@ impl Emulator {
         let debugger = Debugger::new();
         let breakpoint = debugger.triggered.clone();
         ctrlc::set_handler(move || {
-            println!("Ctrl-C pressed, stopping execution...");
             breakpoint.store(true, Ordering::SeqCst);
         })
         .expect("Error setting Ctrl-C handler");
@@ -100,10 +99,9 @@ impl Emulator {
 
     // Perform one step of the emulator cycle.
     pub fn step(&mut self) -> bool {
-        if self.debugger.should_break(&self.cpu) {
-            self.debugger.stepping = true;
-
-            if self.debugger.enter(&mut self.cpu) {
+        let break_reason = self.debugger.break_reason(&self.cpu);
+        if let Some(reason) = break_reason {
+            if self.debugger.enter(&mut self.cpu, reason) {
                 // If the debugger returns true, it means we should quit
                 println!("Quitting...");
                 return true;

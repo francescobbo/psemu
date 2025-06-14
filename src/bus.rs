@@ -10,9 +10,22 @@ use crate::{
 /// Represents the possible access sizes for memory operations.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AccessSize {
-    Byte,
-    HalfWord,
-    Word,
+    Byte = 1,
+    HalfWord = 2,
+    Word = 4,
+}
+
+impl TryFrom<usize> for AccessSize {
+    type Error = &'static str;
+
+    fn try_from(size: usize) -> Result<Self, Self::Error> {
+        match size {
+            1 => Ok(AccessSize::Byte),
+            2 => Ok(AccessSize::HalfWord),
+            4 => Ok(AccessSize::Word),
+            _ => Err("Invalid access size"),
+        }
+    }
 }
 
 /// Represents the bus that connects the CPU to the rest of the system.

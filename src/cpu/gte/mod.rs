@@ -186,6 +186,16 @@ impl Gte {
         }
     }
 
+    pub fn all_regs(&self) -> [u32; 64] {
+        let mut regs = [0; 64];
+
+        for i in 0..64 {
+            regs[i] = self.read(i).unwrap_or(0);
+        }
+
+        regs
+    }
+
     /// Writes a value to a GTE register
     pub fn write(&mut self, register: usize, value: u32) -> Result<(), String> {
         if register >= 32 {

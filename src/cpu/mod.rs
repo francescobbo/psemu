@@ -14,7 +14,7 @@ mod test_utils;
 use crate::bus::{AccessSize, Bus};
 use control_types::ExceptionCause;
 pub use instruction::Instruction;
-use memory::{AccessType, MemoryError};
+pub use memory::{AccessType, MemoryError};
 
 const NUM_REGISTERS: usize = 32;
 
@@ -58,6 +58,8 @@ pub struct Cpu {
 
     // The COP2 coprocessor (the GTE), which handles graphics transformations.
     pub gte: gte::Gte,
+
+    pub last_memory_operation: (AccessType, u32),
 }
 
 /// Represents a delayed load operation.
@@ -84,6 +86,7 @@ impl Cpu {
             biu_cache_control: 0,
             cop0: control::Cop0::new(),
             gte: gte::Gte::new(),
+            last_memory_operation: (AccessType::InstructionFetch, 0),
         }
     }
 
@@ -260,7 +263,7 @@ impl Cpu {
             0x2b => self.ins_sw(instruction),
             0x2e => self.ins_swr(instruction),
             0x32 => self.ins_lwc2(instruction),
-            0x3A => self.ins_swc2(instruction),
+            0x3a => self.ins_swc2(instruction),
             _ => {
                 println!(
                     "Unimplemented opcode: {:02x} @ {:08x}",

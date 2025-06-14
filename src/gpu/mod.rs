@@ -1,7 +1,7 @@
 pub struct Gpu {
-    fifo: [u32; 2000], // FIFO for GPU commands
-    fifo_index: usize, // Current index in the FIFO
-    vram: Vec<u16>,    // Video RAM for storing pixel data
+    fifo: [u32; 2000],  // FIFO for GPU commands
+    fifo_index: usize,  // Current index in the FIFO
+    pub vram: Vec<u16>, // Video RAM for storing pixel data
     is_reading: usize,
     reading_x: usize, // X coordinate for reading pixels
     reading_y: usize, // Y coordinate for reading pixels
@@ -283,7 +283,7 @@ impl Gpu {
                 let mut src_idx = 0;
                 let mut dst_idx = dest_y * 1024 + dest_x;
 
-                for yoffs in 0..ys {
+                for _ in 0..ys {
                     for xoffs in 0..xs {
                         self.vram[dst_idx + xoffs] = data[src_idx];
                         src_idx += 1;
