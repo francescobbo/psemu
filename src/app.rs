@@ -6,9 +6,8 @@ use std::sync::Arc;
 
 use pixels::{Pixels, SurfaceTexture};
 use ringbuf::{
-    HeapCons, SharedRb, StaticRb,
-    storage::Heap,
-    traits::{Consumer, Observer, RingBuffer, Split, SplitRef},
+    HeapCons,
+    traits::{Consumer, Observer},
 };
 use winit::{
     application::ApplicationHandler,
@@ -37,6 +36,7 @@ pub struct App {
     sound_stream: Option<cpal::Stream>,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct SoundFrame(pub f32, pub f32);
 
 impl App {
@@ -110,6 +110,7 @@ impl App {
 
         let channels = config.channels as usize;
 
+        let mut last_sample: SoundFrame = SoundFrame(0.0, 0.0);
         let stream = device
             .build_output_stream(
                 &config,
@@ -118,18 +119,37 @@ impl App {
                     for frame in output.chunks_mut(channels) {
                         if let Some(sound_frame) = sample_consumer.try_pop() {
                             // Use the sound frame's value
-                            frame[0] = sound_frame.0; // Left channel
-                            frame[1] = sound_frame.1; // Right channel
+                            frame[0] = sound_frame.0 * 5.0;
+                            frame[1] = sound_frame.1 * 5.0;
+                            last_sample = sound_frame;
+
+                            // println!(
+                            //     "Popped sound frame: ({}, {})",
+                            //     sound_frame.0, sound_frame.1
+                            // );
                         } else {
                             // If no sound frame is available, fill with silence
-                            frame[0] = 0.0; // Left channel
-                            frame[1] = 0.0; // Right channel
+                            frame[0] = last_sample.0;
+                            frame[1] = last_sample.1;
                         }
                     }
 
-                    while !sample_consumer.is_empty() {
-                        // Drain any remaining sound frames
-                        sample_consumer.try_pop();
+                    // Reduce the data in the ring buffer to the size of the output buffer,
+                    // for next time this callback is called. That data is never getting
+                    // played.
+                    let cap = output.len() / channels;
+                    if sample_consumer.occupied_len() > cap {
+                        // Skip the excess samples in the ring buffer
+                        println!(
+                            "Skipping {} samples in the ring buffer",
+                            sample_consumer.occupied_len() - cap
+                        );
+                        sample_consumer
+                            .skip(sample_consumer.occupied_len() - cap);
+                        println!(
+                            "New ring buffer size: {}",
+                            sample_consumer.occupied_len()
+                        );
                     }
                 },
                 |err| eprintln!("Audio error: {}", err),

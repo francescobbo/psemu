@@ -5,6 +5,7 @@ use crate::{
     ram::{self, Ram},
     rom::{self, Rom},
     scratchpad::Scratchpad,
+    spu::Spu,
 };
 
 /// Represents the possible access sizes for memory operations.
@@ -35,6 +36,7 @@ pub struct Bus {
     pub ram: Ram,
     pub rom: Rom,
     pub gpu: Gpu,
+    pub spu: Spu,
     pub dma: Dma,
 
     pub interrupts: InterruptController,
@@ -74,7 +76,6 @@ const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f801100, 0x1f80112f, "Timers"),
     (0x1f801800, 0x1f801803, "CD-ROM"),
     (0x1f801820, 0x1f801827, "MDEC"),
-    (0x1f801c00, 0x1f801fff, "SPU"),
     (0x1f802000, 0x1f803fff, "Exp2"),
     (0x1fa00000, 0x1fbfffff, "Exp3"),
 ];
@@ -86,6 +87,7 @@ impl Bus {
             ram: Ram::new(),
             rom: Rom::new(),
             gpu: Gpu::new(),
+            spu: Spu::new(),
             dma: Dma::new(),
             interrupts: InterruptController::new(),
             biu_control: [0; 9],
@@ -134,6 +136,7 @@ impl Bus {
             0x1f80_1080..=0x1f80_10f4 => {
                 Ok(self.dma.read(address - 0x1f80_1080, size))
             }
+            0x1f801c00..=0x1f802000 => Ok(self.spu.read(address, size)),
             DRAM_CONTROL_BASE..=DRAM_CONTROL_END => {
                 assert!(
                     size == AccessSize::Word,
@@ -174,6 +177,9 @@ impl Bus {
             }
             rom::ROM_BASE..=rom::ROM_END => {
                 self.rom.write(address, value, size)
+            }
+            0x1f801c00..=0x1f802000 => {
+                self.spu.write(address, value, size);
             }
             0x1f801040..=0x1f80104f => {
                 self.joy.write(address, value);

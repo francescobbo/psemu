@@ -238,29 +238,6 @@ impl Gpu {
                     &self.fifo[0..=2]
                 );
 
-                if self.fifo[2] == 0x10010 {
-                    // 1x16 is a CLUT
-
-                    // Show the 16 pixels in the CLUT
-                    // Encoded in self.fifo[3..]. Each entry is 2 u16 values
-
-                    for i in 0..=15 {
-                        let idx = 3 + i / 2;
-                        let pixel = self.fifo[idx];
-                        let color = if i % 2 == 0 {
-                            pixel & 0xffff // First half
-                        } else {
-                            (pixel >> 16) & 0xffff // Second half
-                        };
-
-                        let (r, g, b) = Self::command_to_rgb888(color);
-                        println!(
-                            "[GPU] CLUT write pixel {}: R: {}, G: {}, B: {}",
-                            i, r, g, b
-                        );
-                    }
-                }
-
                 let dest_x = (self.fifo[1] & 0x3ff) as usize;
                 let dest_y = ((self.fifo[1] >> 16) & 0x1ff) as usize;
                 let mut xs = (self.fifo[2] & 0x3ff) as usize;
