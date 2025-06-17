@@ -13,6 +13,7 @@ mod ram;
 mod rom;
 mod scratchpad;
 mod spu;
+mod timers;
 
 use clap::Parser;
 use winit::event_loop::EventLoop;

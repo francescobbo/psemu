@@ -598,7 +598,6 @@ impl Debugger {
                 // If the value is different, print it in green
                 print!("{:>5} -> \x1b[32m{value:08x}\x1b[0m  ", REGISTERS[i]);
             }
-            print!("{:>5} -> {value:08x}  ", REGISTERS[i]);
 
             if i % 4 == 3 {
                 println!();
@@ -674,21 +673,14 @@ impl Debugger {
         );
         print!(
             "{}",
-            if status.interrupt_enable() {
+            if status.interrupt_enable_previous() {
                 "IEp "
             } else {
                 "iep "
             }
         );
 
-        print!(
-            "{}",
-            if status.user_mode_previous() {
-                "KU "
-            } else {
-                "ku "
-            }
-        );
+        print!("{}", if status.user_mode() { "KU " } else { "ku " });
         print!(
             "{}",
             if status.interrupt_enable() {

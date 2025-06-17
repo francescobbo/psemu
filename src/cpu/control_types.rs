@@ -68,7 +68,7 @@ bitfield! {
     pub interrupt_pending, _: 15, 8;
 
     // IP2, the only hardware interrupt line, wired to the Interrupt controller
-    pub _, set_ip2: 10;
+    pub ip2, set_ip2: 10;
 
     // Set to 1 when an exception occurs while executing a branch delay slot
     pub branch_delay, set_branch_delay: 31;

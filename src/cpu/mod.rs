@@ -60,6 +60,8 @@ pub struct Cpu {
     pub gte: gte::Gte,
 
     pub last_memory_operation: (AccessType, u32),
+
+    pub steps: u64,
 }
 
 /// Represents a delayed load operation.
@@ -87,6 +89,8 @@ impl Cpu {
             cop0: control::Cop0::new(),
             gte: gte::Gte::new(),
             last_memory_operation: (AccessType::InstructionFetch, 0),
+
+            steps: 0,
         }
     }
 
@@ -97,10 +101,15 @@ impl Cpu {
         // Take the load delay, if we have one.
         self.current_load_delay = self.load_delay.take();
 
-        if self.cop0.should_interrupt() {
-            // If the coprocessor requests an interrupt, we handle it
-            self.exception(ExceptionCause::Interrupt);
-        }
+        // self.steps += 1;
+        // if self.steps > 19290000 {
+        //     // Print the current PC every 1000 steps
+        //     println!("PC: {:08x}", self.pc);
+
+        //     if self.pc == 0xb0 {
+        //         println!("REGS: {:?}", self.registers);
+        //     }
+        // }
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
@@ -119,6 +128,13 @@ impl Cpu {
 
         // Update PC to point to the following instruction.
         self.pc += 4;
+
+        if self.cop0.should_interrupt() {
+            // println!("Entering interrupt handler at PC: {:08x}", self.pc);
+            // If the coprocessor requests an interrupt, we handle it
+            self.exception(ExceptionCause::Interrupt);
+            return;
+        }
 
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);

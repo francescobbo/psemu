@@ -1,3 +1,7 @@
+use std::f32::consts::E;
+
+use crate::gpu;
+
 pub struct Gpu {
     fifo: [u32; 2000],  // FIFO for GPU commands
     fifo_index: usize,  // Current index in the FIFO
@@ -27,6 +31,28 @@ pub struct Gpu {
     tex_page_y: usize,
     opacity_flag: usize,
     tex_page_depth: usize, // Color depth of the texture page
+
+    last_cycle: u64, // Last CPU cycle count when the GPU was updated
+
+    // GPU cycles counter used to track the dot clock. (when this value exceeds
+    // the dotclock_divider, a dot is counted)
+    dotclock_counter: f64,
+    scanline_counter: f64, // Counter for the current scanline
+
+    // Number of dots rendered in the current scanline
+    dots: u64, // Number of dots rendered
+    // Scanline counter
+    scanline: u64,
+
+    dotclock_divider: u8, // Divider for the dot clock
+    interlace: bool,      // Interlaced mode flag
+    is_pal: bool,         // PAL mode flag
+    is_24bit: bool,       // 24-bit color mode flag
+
+    pub is_in_vblank: bool, // Flag to indicate if the GPU is in VBlank
+    pub is_in_hblank: bool, // Flag to indicate if the GPU is in HBlank
+
+    even_odd: bool, // Flag to indicate if the GPU is in even/odd field mode
 }
 
 impl Gpu {
@@ -60,7 +86,122 @@ impl Gpu {
             tex_page_y: 0,
             opacity_flag: 0,
             tex_page_depth: 0,
+
+            last_cycle: 0,         // Initialize last cycle to 0
+            dotclock_counter: 0.0, // Initialize GPU cycles to 0.0
+            scanline_counter: 0.0, // Initialize scanline counter to 0.0
+            dots: 0,
+            scanline: 0,
+
+            dotclock_divider: 8, // Default dot clock divider
+            interlace: false,    // Default to non-interlaced mode
+            is_pal: false,       // Default to NTSC mode
+            is_24bit: false,     // Default to 16-bit color mode
+
+            is_in_vblank: false, // Not in VBlank by default
+            is_in_hblank: false, // Not in HBlank by default
+
+            even_odd: false,
         }
+    }
+
+    pub fn update(
+        &mut self,
+        cycles: u64,
+        interrupt_controller: &mut crate::interrupts::InterruptController,
+    ) {
+        let delta = cycles - self.last_cycle;
+        self.last_cycle = cycles;
+
+        // convert cpu cycles to GPU cycles
+        let gpu_delta = delta as f64 * 1.5845;
+        self.dotclock_counter += gpu_delta;
+        self.scanline_counter += gpu_delta;
+
+        if self.scanline_counter >= 2560.0 && !self.is_in_hblank {
+            // Enter HBlank
+            self.is_in_hblank = true;
+        }
+
+        if self.is_pal && self.scanline_counter >= 3406.0 {
+            // End of scanline
+            self.scanline_counter -= 3406.0;
+            self.scanline += 1;
+
+            self.dots =
+                (self.scanline_counter / (self.dotclock_divider as f64)) as u64;
+            self.dotclock_counter = 0.0;
+            self.is_in_hblank = false; // Exit HBlank
+
+            if self.scanline >= 240 && !self.is_in_vblank {
+                // Enter VBlank
+                self.is_in_vblank = true;
+                interrupt_controller.trigger_irq(0); // Trigger VBlank interrupt
+            }
+
+            if !self.interlace {
+                // If not interlaced, toggle even/odd field on every scanline
+                self.even_odd = !self.even_odd;
+            }
+
+            if self.scanline >= 313 {
+                // Reset scanline counter for PAL
+                self.scanline = 0;
+                self.is_in_vblank = false; // Exit VBlank
+
+                if self.interlace {
+                    // If interlaced, toggle the even/odd field on every frame
+                    self.even_odd = !self.even_odd;
+                }
+            }
+        } else if !self.is_pal && self.scanline_counter >= 3413.0 {
+            // End of scanline
+            self.scanline_counter -= 3413.0;
+            self.scanline += 1;
+
+            self.dots =
+                (self.scanline_counter / (self.dotclock_divider as f64)) as u64;
+            self.dotclock_counter = 0.0;
+            self.is_in_hblank = false; // Exit HBlank
+
+            if self.scanline >= 240 && !self.is_in_vblank {
+                // Enter VBlank
+                self.is_in_vblank = true;
+
+                interrupt_controller.trigger_irq(0); // Trigger VBlank interrupt
+            }
+
+            if !self.interlace {
+                // If not interlaced, toggle even/odd field on every scanline
+                self.even_odd = !self.even_odd;
+            }
+
+            if self.scanline >= 262 {
+                // Reset scanline counter for NTSC
+                self.scanline = 0;
+                self.is_in_vblank = false; // Exit VBlank
+
+                if self.interlace {
+                    // If interlaced, we need to reset the even/odd field
+                    self.even_odd = !self.even_odd;
+                }
+            }
+        }
+
+        while self.dotclock_counter > self.dotclock_divider as f64 {
+            // Reset the dot clock counter
+            self.dotclock_counter -= self.dotclock_divider as f64;
+            self.dots += 1;
+        }
+    }
+
+    pub fn cpu_clocks_to_dotclocks(&self, clocks: u64) -> f64 {
+        // Convert CPU clocks to GPU dot clocks
+        (clocks as f64) * 1.5845 / self.dotclock_divider as f64
+    }
+
+    fn is_ntsc(&self) -> bool {
+        !self.is_pal
     }
 
     pub fn get_pixel_color(&self, i: usize) -> (u8, u8, u8) {
@@ -79,8 +220,43 @@ impl Gpu {
 
     pub fn read(&mut self, address: u32) -> u32 {
         if address == 0x1f80_1814 {
-            // println!("[GPU] Read GPUSTAT");
-            return 0x1c00_0000;
+            let mut gpu_stat = (self.tex_page_x & 0xf) as u32;
+            gpu_stat |= ((self.tex_page_y & 0x1) << 4) as u32;
+            gpu_stat |= ((self.opacity_flag & 0x3) << 5) as u32;
+            gpu_stat |= ((self.tex_page_depth & 0x3) << 7) as u32;
+            gpu_stat |= (self.enable_dithering as u32) << 9;
+
+            // todo bits 10, 11, 12, 14, 15, 24, 25-30
+            gpu_stat |= (self.interlace as u32) << 13;
+
+            let divider_bits = match self.dotclock_divider {
+                4 => 0,
+                5 => 1,
+                8 => 2,
+                10 => 3,
+                7 => 4,
+                _ => unreachable!(),
+            };
+
+            if divider_bits == 4 {
+                gpu_stat |= 1 << 16;
+            } else {
+                gpu_stat |= divider_bits << 17;
+            }
+
+            gpu_stat |= (self.interlace as u32) << 19;
+            gpu_stat |= (self.is_pal as u32) << 20;
+            gpu_stat |= (self.is_24bit as u32) << 21;
+            gpu_stat |= (self.interlace as u32) << 22;
+            gpu_stat |= (self.display_enable as u32) << 23;
+
+            let even_odd = self.even_odd && !self.is_in_vblank;
+            gpu_stat |= (even_odd as u32) << 31; // Set the even/odd field bit
+
+            // TMP force bits 26-28 (readyness)
+            gpu_stat |= 0x7 << 26; // Force bits 26-28 to 111
+
+            return gpu_stat;
         }
 
         // println!("[GPU] Read operation at address {:#x}", address);
@@ -147,6 +323,20 @@ impl Gpu {
                         self.screen_x_start = (value & 0x3ff) as usize; // X start position
                         self.screen_y_start = ((value >> 10) & 0x1ff) as usize; // Y start position
                     }
+                    0x08 => {
+                        let dividers = [10, 8, 5, 4];
+                        if value & (1 << 6) != 0 {
+                            self.dotclock_divider = 7;
+                        } else {
+                            let divider_index = (value >> 6) & 3;
+                            self.dotclock_divider =
+                                dividers[divider_index as usize];
+                        }
+
+                        self.interlace = (value & 0x14) == 0x14;
+                        self.is_pal = value & 0x80 != 0;
+                        self.is_24bit = value & 0x10 != 0;
+                    }
                     _ => {
                         // println!("[GPU] Unknown command in GP1: {:#x}", cmd);
                     }
@@ -204,6 +394,10 @@ impl Gpu {
         // println!("[GPU] Executing command: {:#x}", command);
 
         match command {
+            0x01 => {
+                // clear fifo
+                self.fifo_index = 0;
+            }
             0x02 => {
                 // Fill rectangle in VRAM
 
@@ -233,10 +427,10 @@ impl Gpu {
                 }
             }
             0xa0 => {
-                println!(
-                    "[GPU] Drawing pixels to VRAM: {:?}",
-                    &self.fifo[0..=2]
-                );
+                // println!(
+                //     "[GPU] Drawing pixels to VRAM: {:?}",
+                //     &self.fifo[0..=2]
+                // );
 
                 let dest_x = (self.fifo[1] & 0x3ff) as usize;
                 let dest_y = ((self.fifo[1] >> 16) & 0x1ff) as usize;
@@ -269,10 +463,10 @@ impl Gpu {
                 }
             }
             0xc0 => {
-                println!(
-                    "[GPU] Reading pixels from VRAM: {:?}",
-                    &self.fifo[0..self.fifo_index]
-                );
+                // println!(
+                //     "[GPU] Reading pixels from VRAM: {:?}",
+                //     &self.fifo[0..self.fifo_index]
+                // );
                 self.reading_x = (self.fifo[1] & 0x3ff) as usize; // X position
                 self.reading_y = ((self.fifo[1] >> 16) & 0x1ff) as usize; // Y position
 

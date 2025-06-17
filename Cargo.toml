@@ -11,6 +11,11 @@ ctrlc = "*"
 image = "0.24"
 pixels = "0.15"
 psdisasm = "0.2.0"
+regex = "1.8"
 ringbuf = "0.4.8"
 rustyline = "15.0.0"
 winit = "0.30"
+
+[profile.dev]
+# Turn on a small amount of optimisation in Development mode.
+opt-level = 1

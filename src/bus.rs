@@ -1,12 +1,13 @@
 use crate::{
-    dma::{ChannelLink, Direction, Dma, SyncMode},
     cdrom::Cdrom,
+    dma::{ChannelLink, Direction, Dma, SyncMode},
     gpu::Gpu,
     interrupts::{INTERRUPTS_BASE, INTERRUPTS_END, InterruptController},
     ram::{self, Ram},
     rom::{self, Rom},
     scratchpad::Scratchpad,
     spu::Spu,
+    timers::Timers,
 };
 
 /// Represents the possible access sizes for memory operations.
@@ -40,6 +41,7 @@ pub struct Bus {
     pub spu: Spu,
     pub cdrom: Cdrom,
     pub dma: Dma,
+    pub timers: Timers,
 
     pub interrupts: InterruptController,
 
@@ -75,7 +77,6 @@ const DRAM_CONTROL_END: u32 = DRAM_CONTROL_BASE + DRAM_CONTROL_SIZE - 1;
 const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f000000, 0x1f7fffff, "Exp1"),
     (0x1f801050, 0x1f80105f, "Serial"),
-    (0x1f801100, 0x1f80112f, "Timers"),
     (0x1f801820, 0x1f801827, "MDEC"),
     (0x1f802000, 0x1f803fff, "Exp2"),
     (0x1fa00000, 0x1fbfffff, "Exp3"),
@@ -91,6 +92,7 @@ impl Bus {
             spu: Spu::new(),
             cdrom: Cdrom::new(),
             dma: Dma::new(),
+            timers: Timers::new(),
             interrupts: InterruptController::new(),
             biu_control: [0; 9],
             dram_control: 0,
@@ -104,7 +106,7 @@ impl Bus {
     pub fn read(&mut self, address: u32, size: AccessSize) -> Result<u32, ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                // println!("[{name}] Reading ({size:?}) at {address:08x}");
+                println!("[{name}] Reading ({size:?}) at {address:08x}");
                 return Ok(0);
             }
         }
@@ -115,6 +117,10 @@ impl Bus {
                 Ok(self.scratchpad.read(address, size))
             }
             ram::RAM_BASE..=ram::RAM_END => Ok(self.ram.read(address, size)),
+            0x0020_0000..=0x7f_0000 => {
+                let address = address & 0x1f_ffff; // Truncate to 21 bits
+                Ok(self.ram.read(address, size))
+            }
             rom::ROM_BASE..=rom::ROM_END => Ok(self.rom.read(address, size)),
             0x1f801810..=0x1f801817 => {
                 // GPU registers
@@ -138,9 +144,8 @@ impl Bus {
             0x1f80_1080..=0x1f80_10f4 => {
                 Ok(self.dma.read(address - 0x1f80_1080, size))
             }
-            0x1f80_1800..=0x1f80_1803 => {
-                Ok(self.cdrom.read(address, size))
-            }
+            0x1f80_1100..=0x1f80112f => Ok(self.timers.read(address)),
+            0x1f80_1800..=0x1f80_1803 => Ok(self.cdrom.read(address, size)),
             0x1f801c00..=0x1f802000 => Ok(self.spu.read(address, size)),
             DRAM_CONTROL_BASE..=DRAM_CONTROL_END => {
                 assert!(
@@ -170,7 +175,7 @@ impl Bus {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
                 println!(
-                    // "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
+                    "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
                 );
                 return Ok(());
             }
@@ -197,9 +202,10 @@ impl Bus {
                 self.dma.write(address - 0x1f80_1080, value, size);
                 self.handle_dma_write();
             }
-            0x1f80_1800..=0x1f80_1803 => {
-                self.cdrom.write(address, value)
+            0x1f80_1100..=0x1f80112f => {
+                self.timers.write(address, value);
             }
+            0x1f80_1800..=0x1f80_1803 => self.cdrom.write(address, value),
             0x1f80_1810..=0x1f80_1817 => {
                 // GPU registers
                 assert!(
@@ -283,16 +289,35 @@ impl Bus {
                         while remaining_words > 0 {
                             match active_channel.direction() {
                                 Direction::ToRam => {
-                                    // let value = self.cdrom.read::<1>(2).0
-                                    //     | self.cdrom.read::<1>(2).0 << 8
-                                    //     | self.cdrom.read::<1>(2).0 << 16
-                                    //     | self.cdrom.read::<1>(2).0 << 24;
-                                    // self.ram.write::<4>(addr, value);
-                                    // addr = addr.wrapping_add(4);
-                                    // remaining_words -= 1;
-                                    unimplemented!(
-                                        "CDROM DMA write not implemented yet"
+                                    println!(
+                                        "[DMA2] CDROM -> RAM @ 0x{:08x}, remaining: {}",
+                                        addr, remaining_words
                                     );
+                                    let value = self
+                                        .cdrom
+                                        .read(0x1f80_1802, AccessSize::Byte)
+                                        | self.cdrom.read(
+                                            0x1f80_1802,
+                                            AccessSize::Byte,
+                                        ) << 8
+                                        | self.cdrom.read(
+                                            0x1f80_1802,
+                                            AccessSize::Byte,
+                                        ) << 16
+                                        | self.cdrom.read(
+                                            0x1f80_1802,
+                                            AccessSize::Byte,
+                                        ) << 24;
+
+                                    println!("[dMa2] Read value: {value:08x}");
+
+                                    self.ram.write(
+                                        addr,
+                                        value,
+                                        AccessSize::Word,
+                                    );
+                                    addr = addr.wrapping_add(4);
+                                    remaining_words -= 1;
                                 }
                                 Direction::FromRam => {
                                     panic!("Writing to CDROM? Not happening");

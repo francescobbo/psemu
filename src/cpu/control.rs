@@ -114,7 +114,6 @@ impl Cop0 {
             return false;
         }
 
-        // Check if any interrupt is pending and enabled
         self.cause.interrupt_pending() & self.status.interrupt_mask() != 0
     }
 

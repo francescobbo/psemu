@@ -21,6 +21,10 @@ impl InterruptController {
     /// Sets an IRQ for the given source.
     pub fn trigger_irq(&mut self, source: usize) {
         if source <= 10 {
+            // println!(
+            //     "[InterruptController] Triggering IRQ {} (I_STAT: {:#x}, I_MASK: {:#x})",
+            //     source, self.i_stat, self.i_mask
+            // );
             self.i_stat |= 1 << source;
         } else {
             unreachable!("Invalid IRQ source: {}", source);
@@ -29,6 +33,10 @@ impl InterruptController {
 
     /// Returns true when the controller has pending and enabled interrupts.
     pub fn should_interrupt(&self) -> bool {
+        if self.i_stat & self.i_mask & 4 != 0 {
+            // println!("CDROM INT")
+        }
+
         // Check if any interrupt is pending and enabled
         (self.i_stat & self.i_mask) != 0
     }

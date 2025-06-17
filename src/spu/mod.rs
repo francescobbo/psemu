@@ -51,9 +51,9 @@ impl Spu {
             data_start_address_internal: 0,     // Internal data start address
             ram: vec![0; 512 * 1024], // Initialize sound RAM with 512 KiB of zeroes
             voices: vec![Voice::default(); 24], // Initialize 24 voices
-            spucnt: 0, // SPUCNT register, default value
-            key_on_register: 0, // Key ON register, default value
-            key_off_register: 0, // Key OFF register, default value
+            spucnt: 0,                // SPUCNT register, default value
+            key_on_register: 0,       // Key ON register, default value
+            key_off_register: 0,      // Key OFF register, default value
             transfer_control: 0, // Transfer control register, default value
         }
     }
@@ -82,8 +82,6 @@ impl Spu {
     }
 
     pub fn read(&self, address: u32, size: AccessSize) -> u32 {
-        println!("SPU read at address {:#x} with size {:?}", address, size);
-        
         match address {
             0x1f801c00..=0x1f801d7f => {
                 let voice_index = (address - 0x1f801c00) / 16;
@@ -116,8 +114,8 @@ impl Spu {
                         0
                     }
                     0xc => {
-                        // Current address (not implemented)
-                        println!("Reading current address is not implemented");
+                        // ADS current volume
+                        // println!("Reading current address is not implemented");
                         0
                     }
                     0xe => {
@@ -163,39 +161,39 @@ impl Spu {
                         // Volume left
                         self.voices[voice_index as usize].volume_left =
                             (value & 0xffff) as u16;
-                        println!(
-                            "Setting volume left for voice {} to {}",
-                            voice_index,
-                            self.voices[voice_index as usize].volume_left
-                        );
+                        // println!(
+                        //     "Setting volume left for voice {} to {}",
+                        //     voice_index,
+                        //     self.voices[voice_index as usize].volume_left
+                        // );
                     }
                     2 => {
                         // Volume right
                         self.voices[voice_index as usize].volume_right =
                             (value & 0xffff) as u16;
-                        println!(
-                            "Setting volume left for voice {} to {}",
-                            voice_index,
-                            self.voices[voice_index as usize].volume_right
-                        );
+                        // println!(
+                        //     "Setting volume left for voice {} to {}",
+                        //     voice_index,
+                        //     self.voices[voice_index as usize].volume_right
+                        // );
                     }
                     4 => {
                         self.voices[voice_index as usize].sample_rate =
                             (value & 0xffff) as u16;
-                        println!(
-                            "Setting sample rate for voice {} to {}",
-                            voice_index,
-                            self.voices[voice_index as usize].sample_rate
-                        );
+                        // println!(
+                        //     "Setting sample rate for voice {} to {}",
+                        //     voice_index,
+                        //     self.voices[voice_index as usize].sample_rate
+                        // );
                     }
                     6 => {
                         self.voices[voice_index as usize].start_address =
                             (value & 0xffff) << 3;
-                        println!(
-                            "Setting start address for voice {} to {:#x}",
-                            voice_index,
-                            self.voices[voice_index as usize].start_address
-                        );
+                        // println!(
+                        //     "Setting start address for voice {} to {:#x}",
+                        //     voice_index,
+                        //     self.voices[voice_index as usize].start_address
+                        // );
                     }
                     8 => {
                         // ADSR register
@@ -245,7 +243,8 @@ impl Spu {
                     }
                 }
 
-                self.key_on_register = self.key_on_register & 0xffff_0000 | (value & 0xffff);
+                self.key_on_register =
+                    self.key_on_register & 0xffff_0000 | (value & 0xffff);
             }
             0x1f801d8a => {
                 assert!(size == AccessSize::HalfWord);
@@ -258,7 +257,8 @@ impl Spu {
                     }
                 }
 
-                self.key_on_register = self.key_on_register & 0x0000_ffff | (value << 16);
+                self.key_on_register =
+                    self.key_on_register & 0x0000_ffff | (value << 16);
             }
             0x1f801d8c => {
                 assert!(size == AccessSize::HalfWord);
@@ -271,7 +271,8 @@ impl Spu {
                     }
                 }
 
-                self.key_off_register = self.key_off_register & 0xffff_0000 | (value & 0xffff);
+                self.key_off_register =
+                    self.key_off_register & 0xffff_0000 | (value & 0xffff);
             }
             0x1f801d8e => {
                 assert!(size == AccessSize::HalfWord);
@@ -284,23 +285,36 @@ impl Spu {
                     }
                 }
 
-                self.key_off_register = self.key_off_register & 0x0000_ffff | (value << 16);
+                self.key_off_register =
+                    self.key_off_register & 0x0000_ffff | (value << 16);
             }
             0x1f801d90 => {
-                // Voice Pitch modulation enable flags. Bits 1-23
+                // Voice Pitch modulation enable flags. Bits 1-16
                 // are used to enable pitch modulation. For channel x,
                 // uses channel x-1's amplitude as pitch modulation.
-                println!(
-                    "Warning: Writing to voice pitch modulation enable flags at address {:#x}",
-                    address
-                );
+                // println!(
+                //     "Warning: Writing to voice pitch modulation enable flags at address {:#x}",
+                //     address
+                // );
+            }
+            0x1f801d92 => {
+                // Voice Pitch modulation flags. Bits 16-23.
             }
             0x1f801d94 => {
-                // Voice Noise mode enable flags. Bits 0-23. 1 means noise, 0 is ADPCM.
-                println!(
-                    "Warning: Writing to voice noise mode enable flags at address {:#x}",
-                    address
-                );
+                // Voice Noise mode enable flags. Bits 0-15. 1 means noise, 0 is ADPCM.
+                // println!(
+                //     "Warning: Writing to voice noise mode enable flags at address {:#x}",
+                //     address
+                // );
+            }
+            0x1f801d96 => {
+                // Voice Noise mode flags. Bits 16-23.
+            }
+            0x1f801d98 => {
+                // Reverb mode
+            }
+            0x1f801d9a => {
+                // continue
             }
             0x1f801da0 => {
                 // unused
@@ -361,9 +375,9 @@ impl Spu {
             0x1f801daa => {
                 // SPUCNT
                 self.spucnt = (value & 0xffff) as u16;
-                println!(
-                    "[SPU] SPUCNT write value: {value:#x}",
-                );
+                // println!(
+                //     "[SPU] SPUCNT write value: {value:#x}",
+                // );
             }
             0x1f801dac => {
                 // Sound RAM data transfer control register.
@@ -373,9 +387,7 @@ impl Spu {
             }
             0x1f801dae => {
                 // SPUSTAT
-                println!(
-                    "[SPU] Ignoring write to SPUSTAT",
-                );
+                println!("[SPU] Ignoring write to SPUSTAT",);
             }
             0x1f801db0 => {
                 // CD Audio Input volume
@@ -392,6 +404,13 @@ impl Spu {
                     "Warning: Writing to internal voice register at address {:#x} is not recommended.",
                     address
                 );
+            }
+            0x1f801dc0..=0x1f801dff => {
+                // REVERB registers, not implemented
+                // println!(
+                //     "Warning: Writing to unused SPU register at address {:#x} is not implemented",
+                //     address
+                // );
             }
             _ => {
                 // Handle other addresses or ignore
@@ -486,20 +505,20 @@ impl Voice {
             // Start of loop, update repeat address
             self.repeat_address = self.current_address_internal;
 
-            println!(
-                "Loop start at address {:#x}, repeat address set to {:#x}",
-                self.current_address_internal, self.repeat_address
-            );
+            // println!(
+            //     "Loop start at address {:#x}, repeat address set to {:#x}",
+            //     self.current_address_internal, self.repeat_address
+            // );
         }
 
         if loop_end {
             // End of loop, jump to start of loop
             self.current_address_internal = self.repeat_address;
 
-            println!(
-                "Loop end at address {:#x}, jumping to repeat address {:#x}",
-                self.current_address_internal, self.repeat_address
-            );
+            // println!(
+            //     "Loop end at address {:#x}, jumping to repeat address {:#x}",
+            //     self.current_address_internal, self.repeat_address
+            // );
 
             if !loop_repeat {
                 // End of non-repeating loop, immediately mute the voice
