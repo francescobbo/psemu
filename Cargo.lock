@@ -1788,7 +1788,9 @@ checksum = "afbdc74edc00b6f6a218ca6a5364d6226a259d4b8ea1af4a0ea063f27e179f4d"
 
 [[package]]
 name = "psdisasm"
-version = "0.1.0"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "075739054d2d30980017eb9977ccc9d10f961069969a5d33810e9a3d076baa51"
 
 [[package]]
 name = "psemu"

@@ -66,7 +66,7 @@ impl Cop0 {
 
     /// Writes a value to the specified Cop0 register.
     pub fn write(&mut self, reg: usize, value: u32) -> Result<(), ()> {
-        println!("[Cop0] Writing to register {reg}: {value:x}");
+        // println!("[Cop0] Writing to register {reg}: {value:x}");
 
         match reg {
             3 => self.bpc = value,

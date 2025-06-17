@@ -10,7 +10,7 @@ cpal = "0.16"
 ctrlc = "*"
 image = "0.24"
 pixels = "0.15"
-psdisasm = { path = "../psdisasm", version = "0.1.0" }
+psdisasm = "0.2.0"
 ringbuf = "0.4.8"
 rustyline = "15.0.0"
 winit = "0.30"

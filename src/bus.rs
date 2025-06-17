@@ -1,5 +1,6 @@
 use crate::{
     dma::{ChannelLink, Direction, Dma, SyncMode},
+    cdrom::Cdrom,
     gpu::Gpu,
     interrupts::{INTERRUPTS_BASE, INTERRUPTS_END, InterruptController},
     ram::{self, Ram},
@@ -37,6 +38,7 @@ pub struct Bus {
     pub rom: Rom,
     pub gpu: Gpu,
     pub spu: Spu,
+    pub cdrom: Cdrom,
     pub dma: Dma,
 
     pub interrupts: InterruptController,
@@ -74,7 +76,6 @@ const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1f000000, 0x1f7fffff, "Exp1"),
     (0x1f801050, 0x1f80105f, "Serial"),
     (0x1f801100, 0x1f80112f, "Timers"),
-    (0x1f801800, 0x1f801803, "CD-ROM"),
     (0x1f801820, 0x1f801827, "MDEC"),
     (0x1f802000, 0x1f803fff, "Exp2"),
     (0x1fa00000, 0x1fbfffff, "Exp3"),
@@ -88,6 +89,7 @@ impl Bus {
             rom: Rom::new(),
             gpu: Gpu::new(),
             spu: Spu::new(),
+            cdrom: Cdrom::new(),
             dma: Dma::new(),
             interrupts: InterruptController::new(),
             biu_control: [0; 9],
@@ -136,6 +138,9 @@ impl Bus {
             0x1f80_1080..=0x1f80_10f4 => {
                 Ok(self.dma.read(address - 0x1f80_1080, size))
             }
+            0x1f80_1800..=0x1f80_1803 => {
+                Ok(self.cdrom.read(address, size))
+            }
             0x1f801c00..=0x1f802000 => Ok(self.spu.read(address, size)),
             DRAM_CONTROL_BASE..=DRAM_CONTROL_END => {
                 assert!(
@@ -164,9 +169,9 @@ impl Bus {
     ) -> Result<(), ()> {
         for &(start, end, name) in IO_STUBS {
             if address >= start && address <= end {
-                // println!(
-                //     "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
-                // );
+                println!(
+                    // "[{name}] Writing {value:x} ({size:?}) at {address:08x}"
+                );
                 return Ok(());
             }
         }
@@ -192,7 +197,10 @@ impl Bus {
                 self.dma.write(address - 0x1f80_1080, value, size);
                 self.handle_dma_write();
             }
-            0x1f801810..=0x1f801817 => {
+            0x1f80_1800..=0x1f80_1803 => {
+                self.cdrom.write(address, value)
+            }
+            0x1f80_1810..=0x1f80_1817 => {
                 // GPU registers
                 assert!(
                     size == AccessSize::Word,

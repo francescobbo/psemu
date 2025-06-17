@@ -85,7 +85,7 @@ impl App {
 
     fn start_audio(&mut self, mut sample_consumer: HeapCons<SoundFrame>) {
         if self.output_device.is_none() {
-            eprintln!("No output device available for audio playback.");
+            panic!("No output device available for audio playback.");
             return;
         }
 
@@ -94,18 +94,19 @@ impl App {
         let supported_config = device.default_output_config().unwrap();
         let sample_format = supported_config.sample_format();
         if sample_format != cpal::SampleFormat::F32 {
-            eprintln!("Unsupported sample format: {:?}", sample_format);
+            panic!("Unsupported sample format: {:?}", sample_format);
             return;
         }
 
-        let config: StreamConfig = supported_config.into();
+        let mut config: StreamConfig = supported_config.into();
         let sample_rate = config.sample_rate.0 as f32;
         if sample_rate != 44100.0 {
             eprintln!(
                 "Unsupported sample rate: {}. Expected 44100Hz",
                 sample_rate
             );
-            return;
+
+            config.sample_rate = cpal::SampleRate(44100);
         }
 
         let channels = config.channels as usize;
@@ -140,16 +141,16 @@ impl App {
                     let cap = output.len() / channels;
                     if sample_consumer.occupied_len() > cap {
                         // Skip the excess samples in the ring buffer
-                        println!(
-                            "Skipping {} samples in the ring buffer",
-                            sample_consumer.occupied_len() - cap
-                        );
+                        // println!(
+                        //     "Skipping {} samples in the ring buffer",
+                        //     sample_consumer.occupied_len() - cap
+                        // );
                         sample_consumer
                             .skip(sample_consumer.occupied_len() - cap);
-                        println!(
-                            "New ring buffer size: {}",
-                            sample_consumer.occupied_len()
-                        );
+                        // println!(
+                        //     "New ring buffer size: {}",
+                        //     sample_consumer.occupied_len()
+                        // );
                     }
                 },
                 |err| eprintln!("Audio error: {}", err),

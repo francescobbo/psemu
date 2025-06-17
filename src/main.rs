@@ -1,5 +1,6 @@
 mod app;
 mod bus;
+mod cdrom;
 mod cpu;
 mod debugger;
 mod dma;

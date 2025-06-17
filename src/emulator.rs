@@ -134,9 +134,9 @@ impl Emulator {
 
         // Detect the putchar system call and print the character to the
         // console
-        if self.cpu.pc == 0xb0 && self.cpu.registers[9] == 0x3d {
-            print!("{}", self.cpu.registers[4] as u8 as char);
-        }
+        // if self.cpu.pc == 0xb0 && self.cpu.registers[9] == 0x3d {
+        //     print!("{}", self.cpu.registers[4] as u8 as char);
+        // }
 
         self.cpu
             .cop0
@@ -149,8 +149,13 @@ impl Emulator {
             // Produce a sound frame every 768 cycles (approximately 44100 Hz)
             let sample = self.cpu.bus.spu.tick();
             let sf = crate::app::SoundFrame(sample, sample);
+
+            // while self.sample_producer.is_full() {
+            //     // wait for the consumer to catch up
+            // }
+
             if self.sample_producer.try_push(sf).is_err() {
-                eprintln!("Sound buffer is full, dropping samples");
+                // eprintln!("Sound buffer is full, dropping samples");
             }
         }
 
