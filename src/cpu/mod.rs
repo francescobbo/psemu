@@ -130,8 +130,8 @@ impl Cpu {
         self.pc += 4;
 
         if self.cop0.should_interrupt() {
-            // println!("Entering interrupt handler at PC: {:08x}", self.pc);
             // If the coprocessor requests an interrupt, we handle it
+            self.handle_load_delay();
             self.exception(ExceptionCause::Interrupt);
             return;
         }

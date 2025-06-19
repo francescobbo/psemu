@@ -175,10 +175,23 @@ impl Gte {
                 // RTPS
                 self.ins_rtps();
             }
+            0x06 => self.ins_nclip(),
+            0x10 => self.ins_dpcs(),
+            0x11 => self.ins_intpl(),
             0x12 => {
                 // MVMVA
                 self.ins_mvmva();
             }
+            0x13 => self.ins_ncds(),
+            0x2d => {
+                self.ins_avsz3();
+            }
+            0x30 => {
+                // RTPT
+                self.ins_rtpt();
+            }
+            0x3d => self.ins_gpf(),
+            0x3e => self.ins_gpl(),
             _ => {
                 // Unimplemented or invalid instruction
                 panic!("Unimplemented GTE instruction: {:x}", opcode);

@@ -141,6 +141,10 @@ impl Emulator {
             print!("{}", self.cpu.registers[4] as u8 as char);
         }
 
+        if self.cpu.bus.dma.get_and_clear_new_irq() {
+            self.cpu.bus.interrupts.trigger_irq(3);
+        }
+
         self.cpu
             .cop0
             .set_hardware_interrupt(self.cpu.bus.interrupts.should_interrupt());
@@ -166,7 +170,7 @@ impl Emulator {
             );
         }
 
-        if self.cycles % 769 == 0 {
+        if self.cycles % 768 == 0 {
             self.cpu.bus.cdrom.clock(intc);
 
             // Produce a sound frame every 768 cycles (approximately 44100 Hz)

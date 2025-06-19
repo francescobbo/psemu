@@ -188,6 +188,11 @@ impl Cpu {
             }
         };
 
+        println!(
+            "[Cpu] Memory access exception: {:?} at address {:#x} for access type {:?} at {:#x}",
+            error, address, access_type, self.pc
+        );
+
         self.exception(cause);
         if error == AlignmentError {
             self.cop0.bad_vaddr = address;

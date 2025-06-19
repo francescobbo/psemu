@@ -117,7 +117,7 @@ impl Bus {
                 Ok(self.scratchpad.read(address, size))
             }
             ram::RAM_BASE..=ram::RAM_END => Ok(self.ram.read(address, size)),
-            0x0020_0000..=0x7f_0000 => {
+            0x0020_0000..=0x7f_ffff => {
                 let address = address & 0x1f_ffff; // Truncate to 21 bits
                 Ok(self.ram.read(address, size))
             }
@@ -183,6 +183,10 @@ impl Bus {
 
         match address {
             ram::RAM_BASE..=ram::RAM_END => {
+                self.ram.write(address, value, size)
+            }
+            0x0020_0000..=0x7f_ffff => {
+                let address = address & 0x1f_ffff; // Truncate to 21 bits
                 self.ram.write(address, value, size)
             }
             rom::ROM_BASE..=rom::ROM_END => {
@@ -280,19 +284,17 @@ impl Bus {
                             remaining_words -= 1;
                         }
                         active_channel.done();
-                        // if let Some(d) = &self.debug_tx {
-                        //     d.send(true);
-                        // }
+                        self.dma.irq(6);
                     }
                     ChannelLink::Cdrom => {
                         let mut remaining_words = block_size * blocks;
                         while remaining_words > 0 {
                             match active_channel.direction() {
                                 Direction::ToRam => {
-                                    println!(
-                                        "[DMA2] CDROM -> RAM @ 0x{:08x}, remaining: {}",
-                                        addr, remaining_words
-                                    );
+                                    // println!(
+                                    //     "[DMA2] CDROM -> RAM @ 0x{:08x}, remaining: {}",
+                                    //     addr, remaining_words
+                                    // );
                                     let value = self
                                         .cdrom
                                         .read(0x1f80_1802, AccessSize::Byte)
@@ -309,7 +311,7 @@ impl Bus {
                                             AccessSize::Byte,
                                         ) << 24;
 
-                                    println!("[dMa2] Read value: {value:08x}");
+                                    // println!("[dMa2] Read value: {value:08x}");
 
                                     self.ram.write(
                                         addr,
@@ -325,6 +327,7 @@ impl Bus {
                             }
                         }
                         active_channel.done();
+                        self.dma.irq(3);
                     }
                     _ => {
                         panic!(
@@ -370,9 +373,11 @@ impl Bus {
                                 }
                             }
                             active_channel.done();
+                            self.dma.irq(2);
                         }
                         _ => {
-                            panic!("Linked list is for gpu only");
+                            panic!("Linked list is for gpu only. Found: {:?}",
+                                   active_channel.link());
                         }
                     }
                 }
@@ -392,9 +397,27 @@ impl Bus {
                             }
                         }
                         active_channel.done();
+                        self.dma.irq(2);
+                    }
+                    ChannelLink::Spu => {
+                        for _ in 0..(blocks * block_size) as usize {
+                            match active_channel.direction() {
+                                Direction::FromRam => {
+                                    let value =
+                                        self.ram.read(addr, AccessSize::Word);
+                                    self.spu.write(0x1f801da8, value, AccessSize::Word);
+                                    addr = addr.wrapping_add(step as u32);
+                                }
+                                Direction::ToRam => {
+                                    panic!("Cannot DMA4-SPU to ram");
+                                }
+                            }
+                        }
+                        active_channel.done();
+                        self.dma.irq(4);
                     }
                     _ => {
-                        panic!("Linked list is for gpu only");
+                        unimplemented!("[DMA] new channel Found: {:?}", active_channel.link());
                     }
                 },
                 _ => {

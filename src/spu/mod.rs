@@ -38,6 +38,7 @@ pub struct Spu {
     key_on_register: u32,
     key_off_register: u32, // Key OFF register
     transfer_control: u16,
+    reverb_mode: u32, // Reverb mode register
 }
 
 impl Spu {
@@ -55,6 +56,7 @@ impl Spu {
             key_on_register: 0,       // Key ON register, default value
             key_off_register: 0,      // Key OFF register, default value
             transfer_control: 0, // Transfer control register, default value
+            reverb_mode: 0, // Reverb mode register, default value
         }
     }
 
@@ -123,10 +125,11 @@ impl Spu {
                         self.voices[voice_index as usize].repeat_address >> 3
                     }
                     _ => {
-                        unimplemented!(
+                        println!(
                             "Reading from voice register at address {:#x} is not implemented",
                             address
                         );
+                        0
                     }
                 }
             }
@@ -134,16 +137,37 @@ impl Spu {
             0x1f801d8a => (self.key_on_register >> 16) & 0xffff, // Read upper 16 bits of key on register
             0x1f801d8c => self.key_off_register & 0xffff,
             0x1f801d8e => self.key_off_register >> 16,
+            0x1f801d98 => {
+                // Reverb mode, lower 16 bits
+                self.reverb_mode & 0xffff
+            }
+            0x1f801d9a => {
+                // Reverb mode, upper 16 bits
+                self.reverb_mode >> 16
+            }
+            0x1f801da6 => {
+                // Sound RAM data transfer address
+                self.data_start_address >> 3
+            }
             0x1f801daa => self.spucnt as u32,
             0x1f801dac => self.transfer_control as u32, // IF THIS IS NOT IMPLEMENTED, THE BIOS WILL NOT SEND THE FULL BOOT SEQUENCE
             0x1f801dae => {
                 let b7 = (self.spucnt & 0x20) << 2;
                 ((self.spucnt & 0x1f) | b7) as u32
             }
-            _ => unimplemented!(
-                "Reading from SPU register at address {:#x} is not implemented",
-                address
-            ),
+            0x1f801db8 => {
+                // Current main volume left/right (read-only)
+                // This is a read-only register that returns the current main volume
+                // left and right, which is not implemented in this example.
+                (self.volume_left as u32) | ((self.volume_right as u32) << 16)
+            }
+            _ => {
+                println!(
+                    "Reading from SPU register at address {:#x} is not implemented",
+                    address
+                );
+                0
+            }
         }
     }
 
@@ -201,6 +225,10 @@ impl Spu {
                     0xa => {
                         // ADSR2
                     }
+                    0xc => {
+                        // ADS current volume
+                        // This register is not implemented in this example.
+                    }
                     0xe => {
                         self.voices[voice_index as usize].repeat_address =
                             (value & 0xffff) << 3;
@@ -210,10 +238,12 @@ impl Spu {
                             self.voices[voice_index as usize].repeat_address
                         );
                     }
-                    _ => unimplemented!(
-                        "Writing to voice register at address {:#x} is not implemented",
-                        address
-                    ),
+                    _ => {
+                        println!(
+                            "Writing to voice register at address {:#x} is not implemented",
+                            address
+                        );
+                    }
                 }
             }
             0x1f801d80 => {
@@ -312,9 +342,10 @@ impl Spu {
             }
             0x1f801d98 => {
                 // Reverb mode
+                self.reverb_mode = self.reverb_mode & 0xffff_0000 | (value & 0xffff);
             }
             0x1f801d9a => {
-                // continue
+                self.reverb_mode = self.reverb_mode & 0x0000_ffff | (value << 16);
             }
             0x1f801da0 => {
                 // unused
@@ -364,6 +395,10 @@ impl Spu {
                         ram[2] = ((value >> 16) & 0xff) as u8; // Third byte
                         ram[3] = ((value >> 24) & 0xff) as u8; // Upper byte
                         self.data_start_address_internal += 4;
+                        if self.data_start_address_internal >= 512 * 1024 {
+                            // Wrap around if we exceed sound RAM size
+                            self.data_start_address_internal = 0;
+                        }
                     }
                     AccessSize::Byte => {
                         unimplemented!(

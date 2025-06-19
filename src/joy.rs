@@ -15,27 +15,43 @@ impl Joy {
 
     pub fn read(&mut self, address: u32) -> u32 {
         if address == 0x1f80_1040 {
-            println!("[JOY] Read DATA");
+            // println!("[JOY] Read DATA");
             if self.queue.len() > 0 {
                 let value = self.queue[0];
-                println!("[JOY] Returning value {value:#x} from queue");
+                // println!("[JOY] Returning value {value:#x} from queue");
                 return value;
             } else {
                 // If the queue is empty, return a default value
-                println!("[JOY] Queue is empty, returning 0");
+                // println!("[JOY] Queue is empty, returning 0");
                 return 0;
             }
+        } else if address == 0x1f80_1044 {
+            // println!("[JOY] Read STAT");
+            if self.queue.len() > 0 {
+                return 7;
+            }
+            return 5
         } else if address == 0x1f80_104a {
             // println!("[JOY] Read CTRL");
             return self.ctrl;
-        } else {
+        } else if address == 0x1f80_104e {
+            // println!("[JOY] Read BAUD");
+            // The baud rate register is not implemented, return a default value
+            return 0xdc;
+        }
+        else {
             panic!("[JOY] Unimplemented read at address {:#x}", address);
         }
     }
 
     pub fn write(&mut self, address: u32, value: u32) {
         if address == 0x1f80_1040 {
-            println!("[JOY] write DATA {value:#x}");
+            // println!("[JOY] write DATA {value:#x}");
+
+            if value == 0x01 {
+                self.queue = vec![0xff];
+                return;
+            }
 
             if value == 0x42 {
                 self.queue = vec![
@@ -48,11 +64,16 @@ impl Joy {
             } else if self.queue.len() > 0 {
                 self.queue.remove(0);
             }
+        } else if address == 0x1f80_1048 {
+            // println!("[JOY] write MODE {value:#x}");
         } else if address == 0x1f80_104a {
             // println!("[JOY] write CTRL {value:#x}");
             self.ctrl = value;
+        } else if address == 0x1f80_104e {
+            // println!("[JOY] write BAUD {value:#x}");
+            // The baud rate register is not implemented, do nothing
         } else {
-            panic!("[JOY] Unimplemented read at address {:#x}", address);
+            panic!("[JOY] Unimplemented write at address {:#x}", address);
         }
     }
 }

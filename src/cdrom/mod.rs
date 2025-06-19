@@ -33,6 +33,8 @@ pub struct Cdrom {
     disc: cuebin::CdBinFiles<std::fs::File>,
     cue: cuebin::CueSheet,
     data_fifo: DataFifo,
+
+    raw_sectors: bool,
 }
 
 impl Cdrom {
@@ -59,6 +61,8 @@ impl Cdrom {
             disc: cdbin_file.0, // Initialize the disc with the CUE/BIN files
             cue: cdbin_file.1,  // Initialize the CUE sheet
             data_fifo: DataFifo::new(), // Initialize the data FIFO
+
+            raw_sectors: false, // Default to not using raw sectors
         }
     }
 
@@ -86,10 +90,10 @@ impl Cdrom {
     }
 
     pub fn read(&mut self, address: u32, size: AccessSize) -> u32 {
-        println!(
-            "[CDROM] Read from address {:#x} with size {:?}",
-            address, size
-        );
+        // println!(
+        //     "[CDROM] Read from address {:#x} with size {:?}",
+        //     address, size
+        // );
         match address - 0x1f80_1800 {
             0 => {
                 let receiving_command = matches!(
@@ -117,7 +121,7 @@ impl Cdrom {
                     | prmwrdy as u32
                     | data;
 
-                println!("[CDROM] Read HSTS: {:#x}", val);
+                // println!("[CDROM] Read HSTS: {:#x}", val);
                 val
             }
             1 => {
@@ -162,7 +166,7 @@ impl Cdrom {
                     self.int_status as u32 | 0xe0
                 };
 
-                println!("[CDROM] Read HINT/HMSK: {:#x}", val);
+                // println!("[CDROM] Read HINT/HMSK: {:#x}", val);
                 val
             }
             _ => unreachable!(
@@ -173,10 +177,10 @@ impl Cdrom {
     }
 
     pub fn write(&mut self, address: u32, value: u32) {
-        println!(
-            "[CDROM] Write to address {:#x} with value {:#x}",
-            address, value
-        );
+        // println!(
+        //     "[CDROM] Write to address {:#x} with value {:#x}",
+        //     address, value
+        // );
 
         match address - 0x1f80_1800 {
             0 => {
@@ -420,7 +424,7 @@ impl Cdrom {
     fn generate_second_response(&mut self, command: Command) -> CommandState {
         match command {
             Command::GetId => self.get_id_second_response(),
-            // Command::Init => self.init_second_response(),
+            Command::Init => self.init_second_response(),
             Command::Pause => {
                 self.write_result(vec![self.stat()]);
                 self.emit_int2();
@@ -449,6 +453,12 @@ impl Cdrom {
                 self.emit_int3();
                 CommandState::Idle
             }
+            Command::Demute => {
+                self.write_result(vec![self.stat()]);
+                self.emit_int3();
+
+                CommandState::Idle
+            }
             Command::GetId => {
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
@@ -468,9 +478,19 @@ impl Cdrom {
                     cycles_remaining: 44,
                 }
             }
+            Command::SetFilter => {
+                self.write_result(vec![self.stat()]);
+                self.emit_int3();
+
+                self.parameter_index = 0;
+
+                CommandState::Idle
+            }
             Command::SetMode => {
                 let mode = self.parameters[0];
                 self.parameter_index = 0; // Reset parameter index
+
+                self.raw_sectors = mode & 0x20 != 0;
 
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
@@ -478,6 +498,36 @@ impl Cdrom {
                 CommandState::Idle
             }
             Command::SetLoc => self.execute_set_loc(),
+            Command::Init => {
+                // self.drive_mode = DriveMode::from(0x20);
+
+                if !matches!(self.drive_state, DriveState::Stopped | DriveState::SpinningUp { .. }) {
+                    self.drive_state =
+                        DriveState::Paused { time: self.drive_state.current_time(), int2_queued: false };
+                }
+
+                self.write_result(vec![self.stat()]);
+                self.emit_int3();
+
+                match self.drive_state {
+                    DriveState::Stopped => {
+                        self.drive_state = DriveState::SpinningUp {
+                            cycles_remaining: 22050,
+                            next: SpinUpNextState::Pause,
+                        };
+                        CommandState::Idle
+                    }
+                    DriveState::SpinningUp { cycles_remaining, .. } => {
+                        self.drive_state =
+                            DriveState::SpinningUp { cycles_remaining, next: SpinUpNextState::Pause };
+                        CommandState::Idle
+                    }
+                    _ => CommandState::GeneratingSecondResponse {
+                        command: Command::Init,
+                        cycles_remaining: 24,
+                    },
+                }
+            }
             Command::SeekL => {
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
@@ -498,7 +548,35 @@ impl Cdrom {
                 );
                 CommandState::Idle
             }
-            Command::ReadN => self.execute_read(),
+            Command::GetLocP => {
+                let absolute_time = self.drive_state.current_time();
+                let track = self.cue.find_track_by_time(absolute_time);
+
+                let (track_number, index, relative_time) =
+                    track.map_or((0xAA, 0x00, CdTime::ZERO), |track| {
+                        let track_number = binary_to_bcd(track.number);
+                        let index = u8::from(absolute_time >= track.effective_start_time());
+                        let relative_time = absolute_time.to_sector_number().saturating_sub(track.effective_start_time().to_sector_number());
+
+                        (track_number, index, CdTime::from_sector_number(relative_time))
+                    });
+
+                self.write_result(vec![
+                    track_number,
+                    index,
+                    binary_to_bcd(relative_time.minutes),
+                    binary_to_bcd(relative_time.seconds),
+                    binary_to_bcd(relative_time.frames),
+                    binary_to_bcd(absolute_time.minutes),
+                    binary_to_bcd(absolute_time.seconds),
+                    binary_to_bcd(absolute_time.frames),
+                ]);
+
+                self.emit_int3();
+            
+                CommandState::Idle
+            }
+            Command::ReadN | Command::ReadS => self.execute_read(),
             Command::Pause => {
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
@@ -628,7 +706,7 @@ impl Cdrom {
         // };
 
         self.write_result(vec![
-            status, 0x00, 0x20, 0x00, b'S', b'C', b'E', b'A',
+            status, 0x00, 0x20, 0x00, b'S', b'C', b'E', b'E',
         ]);
         self.emit_int2();
         // None => {
@@ -636,6 +714,12 @@ impl Cdrom {
         //     self.int5(&[0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
         // }
 
+        CommandState::Idle
+    }
+
+    pub(super) fn init_second_response(&mut self) -> CommandState {
+        self.write_result(vec![self.stat()]);
+        self.emit_int2();
         CommandState::Idle
     }
 
@@ -774,12 +858,12 @@ impl Cdrom {
             self.emit_int1();
 
             // TODO should the copy wait until software requests the data sector?
-            // if self.drive_mode.raw_sectors {
-            //     self.data_fifo.copy_from_slice(&self.sector_buffer[12..2352]);
-            // } else {
-            self.data_fifo
-                .copy_from_slice(&self.sector_buffer[24..24 + 2048]);
-            // }
+            if self.raw_sectors {
+                self.data_fifo.copy_from_slice(&self.sector_buffer[12..2352]);
+            } else {
+                self.data_fifo
+                    .copy_from_slice(&self.sector_buffer[24..24 + 2048]);
+            }
         }
 
         DriveState::Reading(ReadState {
@@ -1193,4 +1277,8 @@ impl DataFifo {
     pub fn fully_consumed(&self) -> bool {
         self.idx == self.len
     }
+}
+
+fn binary_to_bcd(value: u8) -> u8 {
+    ((value / 10) << 4) | (value % 10)
 }

@@ -89,6 +89,8 @@ pub struct Dma {
     dpcr: u32,
     dicr: u32,
     channels: [Channel; 7],
+
+    new_irq: bool,
 }
 
 impl Dma {
@@ -105,6 +107,8 @@ impl Dma {
                 Channel::new(5),
                 Channel::new(6),
             ],
+
+            new_irq: false,
         }
     }
 
@@ -152,6 +156,42 @@ impl Dma {
         };
     }
 
+    pub fn irq(&mut self, channel: usize) {
+        if self.dicr & (1 << (16 + channel)) != 0 {
+            // If the IRQ is enabled, set the corresponding bit in DICR
+            self.dicr |= 1 << (24 + channel);
+        }
+
+        self.update_irq_flag();
+    }
+
+    pub fn update_irq_flag(&mut self) {
+        // Compute bit31 (IRQ active)
+        let mask = self.dicr >> 16 & 0x7f;
+        let active = self.dicr >> 24 & 0x7f;
+        let error_flag = self.dicr & (1 << 15) != 0;
+        let master_enable = self.dicr & (1 << 23) != 0;
+        
+        let irq_active = if error_flag || (master_enable && (active & mask) != 0) {
+            1 << 31
+        } else {
+            0
+        };
+
+        if !self.new_irq && irq_active != 0 {
+            // If the IRQ was not already active, set the new_irq flag
+            self.new_irq = true;
+        }
+
+        self.dicr = (self.dicr & !0x8000_0000) | irq_active;
+    }
+
+    pub fn get_and_clear_new_irq(&mut self) -> bool {
+        let new_irq = self.new_irq;
+        self.new_irq = false;
+        new_irq
+    }
+
     pub fn active_channel(&mut self) -> Option<&mut Channel> {
         for ch in &mut self.channels {
             if ch.active() {
@@ -168,6 +208,8 @@ impl Dma {
 
         let rw_parts = value & 0xff_ffff;
         let acks = value & 0x7f00_0000;
+
+        // println!("[DMA] Writing to DICR: {:08x} (rw_parts: {:08x}, acks: {:08x})", value, rw_parts, acks);
 
         // Replace the low 0-23 bits with the new value
         self.dicr &= !0xff_ffff;
@@ -197,6 +239,10 @@ impl Dma {
 
         self.dicr &= !(1 << 31);
         self.dicr |= irq_active;
+
+        if !self.new_irq && irq_active != 0 {
+            self.new_irq = true;
+        }
     }
 }
 

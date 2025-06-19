@@ -5,6 +5,7 @@ pub struct Timers {
     timers: [Timer; 3],
     last_cpu_cycles: u64,
     dotclock_counter: f64,
+    t2_cpu_cycles_buffer: u32,
 
     in_hblank: bool,
     in_vblank: bool,
@@ -51,7 +52,9 @@ impl Timers {
             started_hblank,
         );
 
-        self.run_t1(cycles_diff, started_hblank, started_vblank)
+        self.run_t1(cycles_diff, started_hblank, started_vblank);
+
+        self.run_t2(cycles_diff);
     }
 
     pub fn run_t0(
@@ -199,6 +202,54 @@ impl Timers {
         }
     }
 
+    pub fn run_t2(
+        &mut self,
+        cpu_cycles: u64,
+    ) {
+        let timer = &mut self.timers[2];
+        if timer.is_synchronized {
+            match timer.sync_mode {
+                // If sync mode is 0 or 3, t2 is paused.
+                0 | 3 => return,
+                _ => {}
+            }
+        }
+
+        let (of, target) = if timer.clock_source == 0 || timer.clock_source == 1
+        {
+            // when clock source is 0 or 1, t2 follows the CPU clock
+            timer.add_counter(cpu_cycles)
+        } else {
+            // otherwise, t2 follows the CPU clock divided by 8
+            self.t2_cpu_cycles_buffer += cpu_cycles as u32;
+
+            let mut t2_cycles = 0;
+            while self.t2_cpu_cycles_buffer >= 8 {
+                // when clock source is 1, t0 follows the GPU dotclock
+                // we need to convert the CPU cycles to dotclock cycles
+                self.t2_cpu_cycles_buffer -= 8;
+                t2_cycles += 1;
+            }
+
+            timer.add_counter(t2_cycles as u64)
+        };
+
+        if of {
+            // If the overflow flag is set, we need to handle it
+            timer.reached_overflow = true;
+            if timer.irq_at_overflow {
+                timer.irq_neg = false; // Set IRQ pending
+            }
+        }
+        if target {
+            // If the target flag is set, we need to handle it
+            timer.reached_target = true;
+            if timer.irq_at_target {
+                timer.irq_neg = false; // Set IRQ pending
+            }
+        }
+    }
+
     /// Reads the value of the specified timer.
     pub fn read(&mut self, address: u32) -> u32 {
         let address = address - 0x1f801100;
@@ -223,7 +274,10 @@ impl Timers {
         match address & 0x0f {
             0x00 => timer.counter = value as u16,
             0x04 => Self::write_control(timer, value),
-            0x08 => timer.target = value as u16,
+            0x08 => {
+                println!("[Timers] Setting timer {} target to {:#x}", timer_idx, value);
+                timer.target = value as u16
+            }
             _ => panic!("Invalid timer address: {:#x}", address),
         }
     }
@@ -283,7 +337,11 @@ impl Timer {
         // This is made more complicated by the fact that the counter is a u16,
         // so we need to handle the wrap-around case.
         let cap = if self.reset_at_target {
-            self.target
+            if self.target > 0 {
+                self.target as u16
+            } else {
+                0xffff // If target is 0, we use the maximum value of the counter
+            }
         } else {
             0xffff
         };
