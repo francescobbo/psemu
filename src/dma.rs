@@ -171,12 +171,13 @@ impl Dma {
         let active = self.dicr >> 24 & 0x7f;
         let error_flag = self.dicr & (1 << 15) != 0;
         let master_enable = self.dicr & (1 << 23) != 0;
-        
-        let irq_active = if error_flag || (master_enable && (active & mask) != 0) {
-            1 << 31
-        } else {
-            0
-        };
+
+        let irq_active =
+            if error_flag || (master_enable && (active & mask) != 0) {
+                1 << 31
+            } else {
+                0
+            };
 
         if !self.new_irq && irq_active != 0 {
             // If the IRQ was not already active, set the new_irq flag

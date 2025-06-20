@@ -39,7 +39,7 @@ pub struct Cdrom {
 
 impl Cdrom {
     pub fn new() -> Self {
-        let file = "cb/Crash Bandicoot 1.cue";
+        let file = "/home/francesco/Downloads/Spyro the Dragon (PSX).cue";
         let cdbin_file =
             cuebin::CdBinFiles::create(file, |f| std::fs::File::open(f));
 
@@ -501,9 +501,14 @@ impl Cdrom {
             Command::Init => {
                 // self.drive_mode = DriveMode::from(0x20);
 
-                if !matches!(self.drive_state, DriveState::Stopped | DriveState::SpinningUp { .. }) {
-                    self.drive_state =
-                        DriveState::Paused { time: self.drive_state.current_time(), int2_queued: false };
+                if !matches!(
+                    self.drive_state,
+                    DriveState::Stopped | DriveState::SpinningUp { .. }
+                ) {
+                    self.drive_state = DriveState::Paused {
+                        time: self.drive_state.current_time(),
+                        int2_queued: false,
+                    };
                 }
 
                 self.write_result(vec![self.stat()]);
@@ -517,9 +522,13 @@ impl Cdrom {
                         };
                         CommandState::Idle
                     }
-                    DriveState::SpinningUp { cycles_remaining, .. } => {
-                        self.drive_state =
-                            DriveState::SpinningUp { cycles_remaining, next: SpinUpNextState::Pause };
+                    DriveState::SpinningUp {
+                        cycles_remaining, ..
+                    } => {
+                        self.drive_state = DriveState::SpinningUp {
+                            cycles_remaining,
+                            next: SpinUpNextState::Pause,
+                        };
                         CommandState::Idle
                     }
                     _ => CommandState::GeneratingSecondResponse {
@@ -555,10 +564,19 @@ impl Cdrom {
                 let (track_number, index, relative_time) =
                     track.map_or((0xAA, 0x00, CdTime::ZERO), |track| {
                         let track_number = binary_to_bcd(track.number);
-                        let index = u8::from(absolute_time >= track.effective_start_time());
-                        let relative_time = absolute_time.to_sector_number().saturating_sub(track.effective_start_time().to_sector_number());
+                        let index = u8::from(
+                            absolute_time >= track.effective_start_time(),
+                        );
+                        let relative_time =
+                            absolute_time.to_sector_number().saturating_sub(
+                                track.effective_start_time().to_sector_number(),
+                            );
 
-                        (track_number, index, CdTime::from_sector_number(relative_time))
+                        (
+                            track_number,
+                            index,
+                            CdTime::from_sector_number(relative_time),
+                        )
                     });
 
                 self.write_result(vec![
@@ -573,7 +591,7 @@ impl Cdrom {
                 ]);
 
                 self.emit_int3();
-            
+
                 CommandState::Idle
             }
             Command::ReadN | Command::ReadS => self.execute_read(),
@@ -859,7 +877,8 @@ impl Cdrom {
 
             // TODO should the copy wait until software requests the data sector?
             if self.raw_sectors {
-                self.data_fifo.copy_from_slice(&self.sector_buffer[12..2352]);
+                self.data_fifo
+                    .copy_from_slice(&self.sector_buffer[12..2352]);
             } else {
                 self.data_fifo
                     .copy_from_slice(&self.sector_buffer[24..24 + 2048]);

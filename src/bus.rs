@@ -376,8 +376,10 @@ impl Bus {
                             self.dma.irq(2);
                         }
                         _ => {
-                            panic!("Linked list is for gpu only. Found: {:?}",
-                                   active_channel.link());
+                            panic!(
+                                "Linked list is for gpu only. Found: {:?}",
+                                active_channel.link()
+                            );
                         }
                     }
                 }
@@ -405,7 +407,11 @@ impl Bus {
                                 Direction::FromRam => {
                                     let value =
                                         self.ram.read(addr, AccessSize::Word);
-                                    self.spu.write(0x1f801da8, value, AccessSize::Word);
+                                    self.spu.write(
+                                        0x1f801da8,
+                                        value,
+                                        AccessSize::Word,
+                                    );
                                     addr = addr.wrapping_add(step as u32);
                                 }
                                 Direction::ToRam => {
@@ -417,7 +423,10 @@ impl Bus {
                         self.dma.irq(4);
                     }
                     _ => {
-                        unimplemented!("[DMA] new channel Found: {:?}", active_channel.link());
+                        unimplemented!(
+                            "[DMA] new channel Found: {:?}",
+                            active_channel.link()
+                        );
                     }
                 },
                 _ => {

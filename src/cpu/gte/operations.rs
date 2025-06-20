@@ -47,11 +47,14 @@ impl Gte {
     }
 
     pub(super) fn ins_nclip(&mut self) {
-        self.mac[0] = self.mac0_ovf((self.xy_fifo[0].x as i64
-            * (self.xy_fifo[1].y as i64 - self.xy_fifo[2].y as i64))
-            + (self.xy_fifo[1].x as i64 * (self.xy_fifo[2].y as i64 - self.xy_fifo[0].y as i64))
-            + (self.xy_fifo[2].x as i64 * (self.xy_fifo[0].y as i64 - self.xy_fifo[1].y as i64)))
-            as i32;
+        self.mac[0] = self.mac0_ovf(
+            (self.xy_fifo[0].x as i64
+                * (self.xy_fifo[1].y as i64 - self.xy_fifo[2].y as i64))
+                + (self.xy_fifo[1].x as i64
+                    * (self.xy_fifo[2].y as i64 - self.xy_fifo[0].y as i64))
+                + (self.xy_fifo[2].x as i64
+                    * (self.xy_fifo[0].y as i64 - self.xy_fifo[1].y as i64)),
+        ) as i32;
     }
 
     pub(crate) fn ins_ncds(&mut self) {
@@ -67,7 +70,8 @@ impl Gte {
                 self.sf(),
                 self.lm(),
             );
-            let (h_div_sz, of) = super::division::division(self.h, self.z_fifo[3]);
+            let (h_div_sz, of) =
+                super::division::division(self.h, self.z_fifo[3]);
             let h_div_sz = h_div_sz as i64;
 
             if of {
@@ -85,7 +89,13 @@ impl Gte {
     fn norm_color_depth_cue(&mut self, v: u32, sf: u32, lm: bool) {
         let mut tmp_vector: [i16; 4] = [0; 4];
 
-        self.multiply_matrix_by_vector(self.light, self.vectors[v as usize], self.null, sf, lm);
+        self.multiply_matrix_by_vector(
+            self.light,
+            self.vectors[v as usize],
+            self.null,
+            sf,
+            lm,
+        );
 
         tmp_vector[0] = self.ir[1];
         tmp_vector[1] = self.ir[2];
@@ -95,10 +105,16 @@ impl Gte {
         self.depth_cue(true, false, sf, lm);
     }
 
-
-    fn depth_cue(&mut self, mult_ir123: bool, rgb_from_fifo: bool, sf: u32, lm: bool) {
+    fn depth_cue(
+        &mut self,
+        mult_ir123: bool,
+        rgb_from_fifo: bool,
+        sf: u32,
+        lm: bool,
+    ) {
         let mut rgb_temp: [i32; 3] = [0; 3];
-        let ir_temp: [i32; 3] = [self.ir[1] as i32, self.ir[2] as i32, self.ir[3] as i32];
+        let ir_temp: [i32; 3] =
+            [self.ir[1] as i32, self.ir[2] as i32, self.ir[3] as i32];
 
         if rgb_from_fifo {
             rgb_temp[0] = (self.rgb_fifo[0].r as i32) << 4;
@@ -114,24 +130,28 @@ impl Gte {
             for i in 0..3 {
                 self.mac[1 + i] = (self.a_mv(
                     i,
-                    ((self.fc[i] as i64) << 12) - rgb_temp[i] as i64 * ir_temp[i] as i64,
+                    ((self.fc[i] as i64) << 12)
+                        - rgb_temp[i] as i64 * ir_temp[i] as i64,
                 ) >> sf) as i32;
                 let lm_b = self.lm_b(i, self.mac[1 + i], false) as i64;
                 self.mac[1 + i] = (self.a_mv(
                     i,
-                    rgb_temp[i] as i64 * ir_temp[i] as i64 + self.ir[0] as i64 * lm_b,
+                    rgb_temp[i] as i64 * ir_temp[i] as i64
+                        + self.ir[0] as i64 * lm_b,
                 ) >> sf) as i32;
             }
         } else {
             for i in 0..3 {
                 self.mac[1 + i] = (self.a_mv(
                     i,
-                    ((self.fc[i] as i64) << 12) - ((rgb_temp[i] as u32) << 12) as i64,
+                    ((self.fc[i] as i64) << 12)
+                        - ((rgb_temp[i] as u32) << 12) as i64,
                 ) >> sf) as i32;
                 let lm_b = self.lm_b(i, self.mac[1 + i], false) as i64;
-                self.mac[1 + i] = (self
-                    .a_mv(i, ((rgb_temp[i] as i64) << 12) + self.ir[0] as i64 * lm_b)
-                    >> sf) as i32;
+                self.mac[1 + i] = (self.a_mv(
+                    i,
+                    ((rgb_temp[i] as i64) << 12) + self.ir[0] as i64 * lm_b,
+                ) >> sf) as i32;
             }
         }
 
@@ -243,33 +263,39 @@ impl Gte {
     pub(crate) fn ins_intpl(&mut self) {
         self.mac[1] = (self.a_mv(
             0,
-            ((self.fc[0] as i64) << 12) - (((self.ir[1]) as i32) << 12) as u32 as i64,
+            ((self.fc[0] as i64) << 12)
+                - (((self.ir[1]) as i32) << 12) as u32 as i64,
         ) >> self.sf()) as i32;
         self.mac[2] = (self.a_mv(
             1,
-            ((self.fc[1] as i64) << 12) - (((self.ir[2]) as i32) << 12) as u32 as i64,
+            ((self.fc[1] as i64) << 12)
+                - (((self.ir[2]) as i32) << 12) as u32 as i64,
         ) >> self.sf()) as i32;
         self.mac[3] = (self.a_mv(
             2,
-            ((self.fc[2] as i64) << 12) - (((self.ir[3]) as i32) << 12) as u32 as i64,
+            ((self.fc[2] as i64) << 12)
+                - (((self.ir[3]) as i32) << 12) as u32 as i64,
         ) >> self.sf()) as i32;
 
         let lm_b = self.lm_b(0, self.mac[1], false) as i64;
         self.mac[1] = self.a_mv(
             0,
-            (((self.ir[1] as i64) << 12) + self.ir[0] as i64 * lm_b) >> self.sf(),
+            (((self.ir[1] as i64) << 12) + self.ir[0] as i64 * lm_b)
+                >> self.sf(),
         ) as i32;
 
         let lm_b = self.lm_b(1, self.mac[2], false) as i64;
         self.mac[2] = self.a_mv(
             1,
-            (((self.ir[2] as i64) << 12) + self.ir[0] as i64 * lm_b) >> self.sf(),
+            (((self.ir[2] as i64) << 12) + self.ir[0] as i64 * lm_b)
+                >> self.sf(),
         ) as i32;
 
         let lm_b = self.lm_b(2, self.mac[3], false) as i64;
         self.mac[3] = self.a_mv(
             2,
-            (((self.ir[3] as i64) << 12) + self.ir[0] as i64 * lm_b) >> self.sf(),
+            (((self.ir[3] as i64) << 12) + self.ir[0] as i64 * lm_b)
+                >> self.sf(),
         ) as i32;
 
         self.mac_to_ir(self.lm());
@@ -376,9 +402,12 @@ impl Gte {
     }
 
     pub(super) fn ins_avsz3(&mut self) {
-        self.mac[0] = self.mac0_ovf(self.zsf3 as i64
-            * (self.z_fifo[1] as i64 + self.z_fifo[2] as i64 + self.z_fifo[3] as i64))
-            as i32;
+        self.mac[0] = self.mac0_ovf(
+            self.zsf3 as i64
+                * (self.z_fifo[1] as i64
+                    + self.z_fifo[2] as i64
+                    + self.z_fifo[3] as i64),
+        ) as i32;
         self.otz = self.lm_d(self.mac[0] >> 12, false) as u16;
     }
 
@@ -496,17 +525,20 @@ impl Gte {
     pub(crate) fn ins_gpl(&mut self) {
         self.mac[1] = self.a_mv(
             0,
-            (((self.mac[1] as i64) << self.sf()) + (self.ir[0] as i64 * self.ir[1] as i64))
+            (((self.mac[1] as i64) << self.sf())
+                + (self.ir[0] as i64 * self.ir[1] as i64))
                 >> self.sf(),
         ) as i32;
         self.mac[2] = self.a_mv(
             1,
-            (((self.mac[2] as i64) << self.sf()) + (self.ir[0] as i64 * self.ir[2] as i64))
+            (((self.mac[2] as i64) << self.sf())
+                + (self.ir[0] as i64 * self.ir[2] as i64))
                 >> self.sf(),
         ) as i32;
         self.mac[3] = self.a_mv(
             2,
-            (((self.mac[3] as i64) << self.sf()) + (self.ir[0] as i64 * self.ir[3] as i64))
+            (((self.mac[3] as i64) << self.sf())
+                + (self.ir[0] as i64 * self.ir[3] as i64))
                 >> self.sf(),
         ) as i32;
 

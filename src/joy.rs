@@ -30,7 +30,7 @@ impl Joy {
             if self.queue.len() > 0 {
                 return 7;
             }
-            return 5
+            return 5;
         } else if address == 0x1f80_104a {
             // println!("[JOY] Read CTRL");
             return self.ctrl;
@@ -38,8 +38,7 @@ impl Joy {
             // println!("[JOY] Read BAUD");
             // The baud rate register is not implemented, return a default value
             return 0xdc;
-        }
-        else {
+        } else {
             panic!("[JOY] Unimplemented read at address {:#x}", address);
         }
     }

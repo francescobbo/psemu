@@ -64,13 +64,34 @@ impl Emulator {
 
             // Get VRAM frame data (stub: all white)
             let mut frame_data: Vec<u8> = vec![0; 1024 * 512 * 4];
-            for (j, pixel) in frame_data.chunks_exact_mut(4).enumerate() {
-                let (r, g, b) = emulator.cpu.bus.gpu.get_pixel_color(j);
 
-                pixel[0] = r;
-                pixel[1] = g;
-                pixel[2] = b;
-                pixel[3] = 255; // Alpha channel
+            if true {
+                for y in 0..512 {
+                    for x in 0..1024 {
+                        let (r, g, b) =
+                            emulator.cpu.bus.gpu.get_raw_vram_color(x, y);
+
+                        let offset = (y * 1024 + x) * 4;
+                        frame_data[offset] = r; // Red
+                        frame_data[offset + 1] = g; // Green
+                        frame_data[offset + 2] = b; // Blue
+                        frame_data[offset + 3] = 255; // Alpha (opaque)
+                    }
+                }
+            } else {
+                let (rx, ry) = emulator.cpu.bus.gpu.effective_resolution();
+                for y in 0..ry {
+                    for x in 0..rx {
+                        let (r, g, b) =
+                            emulator.cpu.bus.gpu.get_screen_pixel(x, y);
+
+                        let offset = (y * 1024 + x) * 4;
+                        frame_data[offset] = r; // Red
+                        frame_data[offset + 1] = g; // Green
+                        frame_data[offset + 2] = b; // Blue
+                        frame_data[offset + 3] = 255; // Alpha (opaque)
+                    }
+                }
             }
 
             // Send the frame data to the UI thread

@@ -56,7 +56,7 @@ impl Spu {
             key_on_register: 0,       // Key ON register, default value
             key_off_register: 0,      // Key OFF register, default value
             transfer_control: 0, // Transfer control register, default value
-            reverb_mode: 0, // Reverb mode register, default value
+            reverb_mode: 0,      // Reverb mode register, default value
         }
     }
 
@@ -342,10 +342,12 @@ impl Spu {
             }
             0x1f801d98 => {
                 // Reverb mode
-                self.reverb_mode = self.reverb_mode & 0xffff_0000 | (value & 0xffff);
+                self.reverb_mode =
+                    self.reverb_mode & 0xffff_0000 | (value & 0xffff);
             }
             0x1f801d9a => {
-                self.reverb_mode = self.reverb_mode & 0x0000_ffff | (value << 16);
+                self.reverb_mode =
+                    self.reverb_mode & 0x0000_ffff | (value << 16);
             }
             0x1f801da0 => {
                 // unused

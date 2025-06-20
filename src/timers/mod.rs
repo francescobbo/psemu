@@ -202,10 +202,7 @@ impl Timers {
         }
     }
 
-    pub fn run_t2(
-        &mut self,
-        cpu_cycles: u64,
-    ) {
+    pub fn run_t2(&mut self, cpu_cycles: u64) {
         let timer = &mut self.timers[2];
         if timer.is_synchronized {
             match timer.sync_mode {
@@ -275,7 +272,10 @@ impl Timers {
             0x00 => timer.counter = value as u16,
             0x04 => Self::write_control(timer, value),
             0x08 => {
-                println!("[Timers] Setting timer {} target to {:#x}", timer_idx, value);
+                println!(
+                    "[Timers] Setting timer {} target to {:#x}",
+                    timer_idx, value
+                );
                 timer.target = value as u16
             }
             _ => panic!("Invalid timer address: {:#x}", address),
