@@ -101,9 +101,9 @@ impl<F: Read + Seek> CdBinFiles<F> {
         let sector_addr = u64::from(sector_number) * 2352;
 
         // Only seek if the file descriptor is not already at the desired position
-        println!(
-            "Seeking to sector {sector_number} at address {sector_addr:08x}"
-        );
+        // println!(
+        //     "Seeking to sector {sector_number} at address {sector_addr:08x}"
+        // );
         if *position != sector_addr {
             track_file.seek(SeekFrom::Start(sector_addr)).unwrap_or_else(|_| {
                 panic!(

@@ -1,3 +1,5 @@
+use crate::cpu::branch;
+
 use super::Instruction;
 use super::control_types::*;
 
@@ -137,21 +139,27 @@ impl Cop0 {
         &mut self,
         cause: ExceptionCause,
         pc: u32,
-        bds: bool,
+        npc: u32,
+        in_bds: bool,
+        branch_taken: bool,
+        coprocessor_number: u32
     ) -> u32 {
         // Copy the low 4 bits into bits 6-4 of the Status Register
         self.status.set_low_fields(self.status.low_fields() << 2);
 
-        // Set the BD bit if the exception occurred in a branch delay slot
-        self.cause.set_branch_delay(bds);
-
-        if bds {
-            // If the exception occurred in a branch delay slot, go back one
-            // instruction to point to the branch instruction.
+        if in_bds {
+            self.cause.set_branch_delay(true);
+            self.cause.set_branch_taken(branch_taken);
+            self.tar = npc;
             self.epc = pc.wrapping_sub(4);
         } else {
+            self.cause.set_branch_delay(false);
+            self.cause.set_branch_taken(false);
+            self.tar = 0;
             self.epc = pc;
         }
+
+        self.cause.set_coprocessor_number(coprocessor_number as u32);
 
         // Set the exception code in Cause
         self.cause.set_exception_code(cause.clone());

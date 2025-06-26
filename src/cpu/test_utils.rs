@@ -9,6 +9,7 @@ pub fn test_cpu(
 ) -> Cpu {
     let mut cpu = Cpu::new();
     cpu.pc = INITIAL_PC;
+    cpu.npc = INITIAL_PC + 4;
 
     for &(index, value) in initial_registers.iter() {
         if index < cpu.registers.len() {

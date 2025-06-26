@@ -111,7 +111,7 @@ impl Cpu {
             // If the addition was successful, write the result to the destination register
             Some(result) => self.write_reg(instruction.rd(), result as u32),
             // This means overflow occurred
-            None => self.exception(ExceptionCause::Overflow),
+            None => self.exception(ExceptionCause::Overflow, self.current_pc),
         }
     }
 
@@ -139,7 +139,7 @@ impl Cpu {
 
         match rs.checked_sub(rt) {
             Some(result) => self.write_reg(instruction.rd(), result as u32),
-            None => self.exception(ExceptionCause::Overflow),
+            None => self.exception(ExceptionCause::Overflow, self.current_pc),
         }
     }
 
@@ -167,7 +167,7 @@ impl Cpu {
 
         match value.checked_add(immediate) {
             Some(result) => self.write_reg(instr.rt(), result as u32),
-            None => self.exception(ExceptionCause::Overflow),
+            None => self.exception(ExceptionCause::Overflow, self.current_pc),
         }
     }
 

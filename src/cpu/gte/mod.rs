@@ -111,6 +111,18 @@ bitfield! {
 }
 
 impl Gte {
+    pub fn hash(&self) -> u64 {
+        // A simple hash function for the GTE state
+        let mut hash: u64 = 0xcbf29ce484222325;
+        for i in 0..64 {
+            let val = self.read(i).unwrap();
+            hash ^= val as u64;
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+
+        hash
+    }
+
     /// Creates a new GTE instance
     pub fn new() -> Self {
         Gte {
@@ -168,35 +180,51 @@ impl Gte {
     pub fn execute(&mut self, instruction: Instruction) {
         let opcode = instruction.0 & 0x3f;
 
+        // Flags are reset at the start of each instruction
+        self.flags = Flags(0);
+
+        print!("GTE status before {opcode:x}: ");
+        for i in 0..64 {
+            print!("{:08X} ", self.read(i).unwrap());
+        }
+        println!();
+
         self.current_instruction = instruction.0;
 
         match opcode {
-            0x01 => {
-                // RTPS
-                self.ins_rtps();
-            }
+            0x01 => self.ins_rtps(),
             0x06 => self.ins_nclip(),
+            0x0c => self.ins_op(),
             0x10 => self.ins_dpcs(),
             0x11 => self.ins_intpl(),
-            0x12 => {
-                // MVMVA
-                self.ins_mvmva();
-            }
+            0x12 => self.ins_mvmva(),
             0x13 => self.ins_ncds(),
-            0x2d => {
-                self.ins_avsz3();
-            }
-            0x30 => {
-                // RTPT
-                self.ins_rtpt();
-            }
+            0x14 => self.ins_cdp(),
+            0x16 => self.ins_ncdt(),
+            0x1b => self.ins_nccs(),
+            0x1c => self.ins_cc(),
+            0x1e => self.ins_ncs(),
+            0x20 => self.ins_nct(),
+            0x28 => self.ins_sqr(),
+            0x29 => self.ins_dcpl(),
+            0x2a => self.ins_dpct(),
+            0x2d => self.ins_avsz3(),
+            0x2e => self.ins_avsz4(),
+            0x30 => self.ins_rtpt(),
             0x3d => self.ins_gpf(),
             0x3e => self.ins_gpl(),
+            0x3f => self.ins_ncct(),
             _ => {
                 // Unimplemented or invalid instruction
                 panic!("Unimplemented GTE instruction: {:x}", opcode);
             }
         }
+
+        print!("GTE status after {opcode:x}: ");
+        for i in 0..64 {
+            print!("{:08X} ", self.read(i).unwrap());
+        }
+        println!();
     }
 
     pub fn all_regs(&self) -> [u32; 64] {
@@ -435,7 +463,14 @@ impl Gte {
             60 => self.dqb as u32,
             61 => self.zsf3 as i16 as u32,
             62 => self.zsf4 as i16 as u32,
-            63 => self.cr[31],
+            63 => {
+                let val = self.flags.0;
+                if val & 0x7f87e000 != 0 {
+                    val | (1 << 31)
+                } else {
+                    val
+                }
+            }
             36 | 44 | 52 => self.cr[register - 32] as i16 as u32,
             32..=63 => self.cr[register - 32],
 
@@ -460,7 +495,7 @@ impl Gte {
             0xffff_ffff,
             0xffff_ffff,
             0xffff_ffff,
-            /* 0x08 */
+            /* 8 */
             0xffff_ffff,
             0xffff_ffff,
             0xffff_ffff,
@@ -469,7 +504,7 @@ impl Gte {
             0xffff_ffff,
             0xffff_ffff,
             0xffff_ffff,
-            /* 0x10 */
+            /* 16 */
             0xffff_ffff,
             0xffff_ffff,
             0xffff_ffff,
@@ -478,7 +513,7 @@ impl Gte {
             0xffff_ffff,
             0xffff_ffff,
             0xffff_ffff,
-            /* 0x18 */
+            /* 24 */
             0xffff_ffff,
             0xffff_ffff,
             0x0000_ffff,
@@ -563,9 +598,9 @@ impl Gte {
                 self.zsf4 = value as i16;
             }
             31 => {
-                self.cr[31] = value & 0x7fff_f000;
+                self.flags.0 = value & 0x7fff_f000;
                 if value & 0x7f87e000 != 0 {
-                    self.cr[31] |= 1 << 31;
+                    self.flags.0 |= 1 << 31;
                 }
             }
             _ => unreachable!(),

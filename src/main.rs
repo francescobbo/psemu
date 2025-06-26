@@ -20,9 +20,9 @@ use winit::event_loop::EventLoop;
 
 #[derive(Parser)]
 struct MainArguments {
-    /// Path to a PlayStation program
+    /// Path to a PlayStation .cue file or .exe file
     #[arg(value_name = "PATH")]
-    executable: Option<String>,
+    disk_or_exe: Option<String>,
 
     /// Path to a PlayStation BIOS
     #[arg(long)]

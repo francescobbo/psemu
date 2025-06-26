@@ -57,8 +57,6 @@ mod test {
     fn test_division() {
         let (result, _) = division(1, 10);
 
-        println!("{:x}", result);
-
         let result = fixed_point_to_float(result as u64);
 
         // verify that the result is within an acceptable error margin

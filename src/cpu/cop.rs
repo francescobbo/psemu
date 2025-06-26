@@ -9,13 +9,13 @@ impl Cpu {
     /// 00.0C - SYSCALL
     /// Triggers a Syscall exception
     pub fn ins_syscall(&mut self, _instruction: Instruction) {
-        self.exception(ExceptionCause::Syscall);
+        self.exception(ExceptionCause::Syscall, self.current_pc);
     }
 
     /// 00.0D - BREAK
     /// Triggers a Breakpoint exception
     pub fn ins_break(&mut self, _instruction: Instruction) {
-        self.exception(ExceptionCause::Breakpoint);
+        self.exception(ExceptionCause::Breakpoint, self.current_pc);
     }
 
     /// 10.00 - MFC0 - R-Type (kind of)
@@ -23,7 +23,7 @@ impl Cpu {
     /// GPR[rt] = COP0[rd]
     pub(super) fn ins_mfc0(&mut self, instruction: Instruction) {
         if let Some(value) = self.cop0.read(instruction.rd()) {
-            self.write_reg(instruction.rt(), value);
+            self.delayed_load(instruction.rt(), value)
         } else {
             panic!("Invalid COP0 register read: {}", instruction.rd());
         }
@@ -41,11 +41,7 @@ impl Cpu {
     /// MTC0 rt, rd
     /// COP0[rd] = GPR[rt]
     pub(super) fn ins_mtc0(&mut self, instruction: Instruction) {
-        if let Err(_) =
-            self.cop0.write(instruction.rd(), self.get_rt(instruction))
-        {
-            panic!("Invalid COP0 register write: {}", instruction.rd());
-        }
+        self.cop_delayed_load(0, instruction.rd(), self.get_rt(instruction));
     }
 
     /// 10.06 - CTC0 - R-Type (kind of)
@@ -61,7 +57,7 @@ impl Cpu {
     /// GPR[rt] = COP2[rd]
     pub(super) fn ins_mfc2(&mut self, instruction: Instruction) {
         if let Some(value) = self.gte.read(instruction.rd()) {
-            self.write_reg(instruction.rt(), value);
+            self.delayed_load(instruction.rt(), value)
         } else {
             panic!("Invalid GTE register read: {}", instruction.rd());
         }
@@ -82,23 +78,18 @@ impl Cpu {
     /// MTC2 rt, rd
     /// COP2[rd] = GPR[rt]
     pub(super) fn ins_mtc2(&mut self, instruction: Instruction) {
-        if let Err(_) =
-            self.gte.write(instruction.rd(), self.get_rt(instruction))
-        {
-            panic!("Invalid GTE register write: {}", instruction.rd());
-        }
+        self.cop_delayed_load(2, instruction.rd(), self.get_rt(instruction));
     }
 
     /// 12.06 - CTC2 - R-Type (kind of)
     /// CTC2 rt, rd
     /// COP2[rd + 32] = GPR[rt]
     pub(super) fn ins_ctc2(&mut self, instruction: Instruction) {
-        if let Err(_) = self
-            .gte
-            .write(instruction.rd() + 32, self.get_rt(instruction))
-        {
-            panic!("Invalid GTE register write: {}", instruction.rd());
-        }
+        self.cop_delayed_load(
+            2,
+            instruction.rd() + 32,
+            self.get_rt(instruction),
+        );
     }
 
     pub fn ins_lwc2(&mut self, instruction: Instruction) {
@@ -108,7 +99,7 @@ impl Cpu {
                 self.gte.write(instruction.rt(), value).unwrap();
             }
             Err(e) => {
-                self.memory_access_exception(e, AccessType::Read, address)
+                self.memory_access_exception(e, AccessType::Read, address, self.current_pc);
             }
         };
     }
@@ -120,7 +111,7 @@ impl Cpu {
         match self.write_memory(address, value, AccessSize::Word) {
             Ok(_) => {}
             Err(e) => {
-                self.memory_access_exception(e, AccessType::Write, address)
+                self.memory_access_exception(e, AccessType::Write, address, self.current_pc);
             }
         }
     }

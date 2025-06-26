@@ -1,8 +1,5 @@
 use std::{
-    cmp::Ordering,
-    ops::{Add, AddAssign, Sub, SubAssign},
-    str::FromStr,
-    vec,
+    cmp::Ordering, hash::DefaultHasher, ops::{Add, AddAssign, Sub, SubAssign}, str::FromStr, vec
 };
 
 use crate::{bus::AccessSize, interrupts::InterruptController};
@@ -29,9 +26,13 @@ pub struct Cdrom {
     drive_state: DriveState,
     seek_location: Option<CdTime>,
     sector_buffer: Box<SectorBuffer>,
+    drive_mode: u8,
 
-    disc: cuebin::CdBinFiles<std::fs::File>,
-    cue: cuebin::CueSheet,
+    adpcm_file: u8,
+    adpcm_channel: u8,
+
+    disc: Option<cuebin::CdBinFiles<std::fs::File>>,
+    cue: Option<cuebin::CueSheet>,
     data_fifo: DataFifo,
 
     raw_sectors: bool,
@@ -39,10 +40,6 @@ pub struct Cdrom {
 
 impl Cdrom {
     pub fn new() -> Self {
-        let file = "/home/francesco/Downloads/Spyro the Dragon (PSX).cue";
-        let cdbin_file =
-            cuebin::CdBinFiles::create(file, |f| std::fs::File::open(f));
-
         Cdrom {
             bank: 0,                 // Default bank value
             response: [0; 16],       // Initialize response buffer
@@ -58,12 +55,23 @@ impl Cdrom {
             drive_state: DriveState::Stopped,  // Start with the drive stopped
             seek_location: None,               // No seek location set initially
             sector_buffer: Box::new([0; BYTES_PER_SECTOR]), // Initialize sector buffer
-            disc: cdbin_file.0, // Initialize the disc with the CUE/BIN files
-            cue: cdbin_file.1,  // Initialize the CUE sheet
+            disc: None, // Initialize the disc with the CUE/BIN files
+            cue: None,  // Initialize the CUE sheet
             data_fifo: DataFifo::new(), // Initialize the data FIFO
+            drive_mode: 0,
+            adpcm_file: 0, // Default to file 0 for ADPCM
+            adpcm_channel: 0, // Default to channel 0 for ADPCM
 
             raw_sectors: false, // Default to not using raw sectors
         }
+    }
+
+    pub fn load_cdrom(&mut self, cue_path: &str) {
+        let cdbin_file =
+            cuebin::CdBinFiles::create(cue_path, |f| std::fs::File::open(f));
+
+        self.disc = Some(cdbin_file.0);
+        self.cue = Some(cdbin_file.1);
     }
 
     fn write_result(&mut self, result: Vec<u8>) {
@@ -189,16 +197,16 @@ impl Cdrom {
             1 => match self.bank {
                 0 => self.write_command(value as u8),
                 _ => {
-                    println!(
-                        "[CDROM] Write to 1 at bank {}: {:#x}",
-                        self.bank, value
-                    );
+                    // println!(
+                    //     "[CDROM] Write to 1 at bank {}: {:#x}",
+                    //     self.bank, value
+                    // );
                 }
             },
             2 => {
                 match self.bank {
                     0 => {
-                        println!("[CDROM] Write of parameter: {:#x}", value);
+                        // println!("[CDROM] Write of parameter: {:#x}", value);
 
                         // Parameters write
                         if self.parameter_index < self.parameters.len() {
@@ -217,10 +225,10 @@ impl Cdrom {
                         self.int_mask = (value & 0x1f) as u8; // Mask to lower 5 bits
                     }
                     _ => {
-                        println!(
-                            "[CDROM] Write to 2 at bank {}: {:#x}",
-                            self.bank, value
-                        );
+                        // println!(
+                        //     "[CDROM] Write to 2 at bank {}: {:#x}",
+                        //     self.bank, value
+                        // );
                         // For other banks, we might want to handle it differently
                         // For now, just print the value
                     }
@@ -233,10 +241,10 @@ impl Cdrom {
                         self.int_status &= !value as u8; // Clear the bits in the interrupt status
                     }
                     _ => {
-                        println!(
-                            "[CDROM] Write to 3 at bank {}: {:#x}",
-                            self.bank, value
-                        );
+                        // println!(
+                        //     "[CDROM] Write to 3 at bank {}: {:#x}",
+                        //     self.bank, value
+                        // );
                     }
                 }
             }
@@ -448,7 +456,7 @@ impl Cdrom {
         match command {
             Command::GetStat => {
                 // Get status command
-                println!("[CDROM] Executing GetStat command");
+                // println!("[CDROM] Executing GetStat command");
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
                 CommandState::Idle
@@ -482,6 +490,8 @@ impl Cdrom {
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
 
+
+
                 self.parameter_index = 0;
 
                 CommandState::Idle
@@ -490,6 +500,7 @@ impl Cdrom {
                 let mode = self.parameters[0];
                 self.parameter_index = 0; // Reset parameter index
 
+                self.drive_mode = mode;
                 self.raw_sectors = mode & 0x20 != 0;
 
                 self.write_result(vec![self.stat()]);
@@ -559,7 +570,7 @@ impl Cdrom {
             }
             Command::GetLocP => {
                 let absolute_time = self.drive_state.current_time();
-                let track = self.cue.find_track_by_time(absolute_time);
+                let track = self.cue.as_ref().unwrap().find_track_by_time(absolute_time);
 
                 let (track_number, index, relative_time) =
                     track.map_or((0xAA, 0x00, CdTime::ZERO), |track| {
@@ -617,9 +628,9 @@ impl Cdrom {
                 match param {
                     0x20 => {
                         // Test command with parameter 0x20
-                        println!(
-                            "[CDROM] Executing Test command with parameter 0x20"
-                        );
+                        // println!(
+                        //     "[CDROM] Executing Test command with parameter 0x20"
+                        // );
                         self.write_result(vec![0x95, 0x07, 0x24, 0xc1]);
                         self.emit_int3();
                     }
@@ -648,6 +659,10 @@ impl Cdrom {
 
     fn emit_int3(&mut self) {
         self.int_status |= 0x03;
+    }
+
+    fn emit_int5(&mut self) {
+        self.int_status |= 0x05;
     }
 
     fn write_command(&mut self, command_byte: u8) {
@@ -714,23 +729,25 @@ impl Cdrom {
     }
 
     pub(super) fn get_id_second_response(&mut self) -> CommandState {
-        // match &self.disc {
-        // TODO don't hardcode region
-        // Some(disc) => {
-        let status = self.stat();
-        // let mode_byte = match disc.cue().track(1).mode {
-        //     TrackMode::Mode2 => 0x20,
-        //     TrackMode::Mode1 | TrackMode::Audio => 0x00,
-        // };
+        match &self.disc {
+            Some(_) => {
+                let status = self.stat();
+                // let mode_byte = match disc.cue().track(1).mode {
+                //     TrackMode::Mode2 => 0x20,
+                //     TrackMode::Mode1 | TrackMode::Audio => 0x00,
+                // };
 
-        self.write_result(vec![
-            status, 0x00, 0x20, 0x00, b'S', b'C', b'E', b'E',
-        ]);
-        self.emit_int2();
-        // None => {
-        //     // "No disc" response
-        //     self.int5(&[0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
-        // }
+                self.write_result(vec![
+                    status, 0x00, 0x20, 0x00, b'S', b'C', b'E', b'E',
+                ]);
+                self.emit_int2();
+            }
+            None => {
+                // "No disc" response
+                self.write_result(vec![0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+                self.emit_int5();
+            }
+        }
 
         CommandState::Idle
     }
@@ -760,9 +777,9 @@ impl Cdrom {
         let seconds = (seconds >> 4) * 10 + (seconds & 0x0F);
         let frames = (frames >> 4) * 10 + (frames & 0x0F);
 
-        println!(
-            "[CDROM] SetLoc command with parameters: {minutes:02}:{seconds:02}:{frames:02}"
-        );
+        // println!(
+        //     "[CDROM] SetLoc command with parameters: {minutes:02}:{seconds:02}:{frames:02}"
+        // );
 
         let cdtime = CdTime::new(minutes, seconds, frames);
         self.seek_location = Some(cdtime);
@@ -800,30 +817,24 @@ impl Cdrom {
         let file = self.sector_buffer[16];
         let channel = self.sector_buffer[17];
         let submode = self.sector_buffer[18];
-        // let is_real_time_audio = submode.bit(2) && submode.bit(6);
+        let is_real_time_audio = submode & 0x24 == 0x24;
 
         let mut should_generate_int1 = true;
-        // if self.drive_mode.adpcm_enabled
-        //     && is_real_time_audio
-        //     && (!self.drive_mode.adpcm_filter_enabled
-        //         || (self.xa_adpcm.file == file && self.xa_adpcm.channel == channel))
-        // {
-        //     unimplemented!(
-        //         "[CDROM] Real-time audio sector with CD-XA ADPCM enabled at {time:?}"
-        //     );
-        //     // // CD-XA ADPCM sector; send to ADPCM decoder instead of the data FIFO
-        //     // should_generate_int1 = false;
+        if (self.drive_mode & 0x20 != 0) // Enable ADPCM mode
+            && is_real_time_audio
+            && (self.drive_mode & 0x80 == 0
+                || (self.adpcm_file == file && self.adpcm_channel == channel))
+        {
+            // // CD-XA ADPCM sector; send to ADPCM decoder instead of the data FIFO
+            should_generate_int1 = false;
 
-        //     // log::debug!("Decoding CD-XA ADPCM sector at {time}");
-        //     // self.xa_adpcm.decode_sector(self.sector_buffer.as_ref());
-        // } else if self.drive_mode.adpcm_filter_enabled && is_real_time_audio {
-        //     // The controller does not send sectors to the data FIFO if ADPCM filtering is enabled
-        //     // and this is a real-time audio sector
-        //     // should_generate_int1 = false;
-        //     unimplemented!(
-        //         "[CDROM] Real-time audio sector with ADPCM filtering enabled at {time:?}"
-        //     );
-        // }
+            // log::debug!("Decoding CD-XA ADPCM sector at {time}");
+            // self.xa_adpcm.decode_sector(self.sector_buffer.as_ref());
+        } else if self.drive_mode & 0x80 != 0 && is_real_time_audio {
+            // The controller does not send sectors to the data FIFO if ADPCM filtering is enabled
+            // and this is a real-time audio sector
+            should_generate_int1 = false;
+        }
 
         DriveState::Reading(ReadState {
             time: time + CdTime::new(0, 0, 1),
@@ -833,7 +844,7 @@ impl Cdrom {
     }
 
     fn read_sector_atime(&mut self, time: CdTime) {
-        let Some(track) = self.cue.find_track_by_time(time) else {
+        let Some(track) = self.cue.as_ref().unwrap().find_track_by_time(time) else {
             // TODO INT4+pause at disc end
             todo!("Read to end of disc");
         };
@@ -841,7 +852,7 @@ impl Cdrom {
         let track_number = track.number;
         let relative_time = time - track.start_time;
 
-        self.disc.read_sector(
+        self.disc.as_mut().unwrap().read_sector(
             track_number,
             relative_time.to_sector_number(),
             self.sector_buffer.as_mut(),
@@ -883,6 +894,8 @@ impl Cdrom {
                 self.data_fifo
                     .copy_from_slice(&self.sector_buffer[24..24 + 2048]);
             }
+
+            self.data_fifo.hash();
         }
 
         DriveState::Reading(ReadState {
@@ -1295,6 +1308,15 @@ impl DataFifo {
 
     pub fn fully_consumed(&self) -> bool {
         self.idx == self.len
+    }
+
+    pub fn hash(&self) {
+        // hash with sha1 crate
+        use sha1::{Digest, Sha1};
+        let mut hasher = Sha1::new();
+        hasher.update(&self.values[..self.len]);
+        let hash = hasher.finalize();
+        // println!("Data FIFO hash: {:x}", hash);
     }
 }
 

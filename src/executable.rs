@@ -107,7 +107,7 @@ impl Executable {
     /// Prepares the Cpu and system state for execution of this executable
     pub fn load_into(&self, cpu: &mut crate::cpu::Cpu) {
         // Set the program counter to the entry point
-        cpu.pc = self.header.pc;
+        cpu.npc = self.header.pc;
 
         // Set the global pointer (R28)
         cpu.registers[28] = self.header.gp;

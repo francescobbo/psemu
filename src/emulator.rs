@@ -17,14 +17,48 @@ pub struct Emulator {
     pub cycles: u64,
 
     pub sample_producer: HeapProd<SoundFrame>,
+    pub joypad_receiver: crossbeam_channel::Receiver<JoypadEvent>,
 
     in_vblank: bool,
     vsyncs: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum JoypadButton {
+    Up = 4,
+    Down = 6,
+    Left = 7,
+    Right = 5,
+    Start = 3,
+    Select = 0,
+    Square = 15,
+    Triangle = 12,
+    Circle = 13,
+    Cross = 14,
+    L1 = 10,
+    R1 = 11,
+    L2 = 8,
+    R2 = 9,
+    L3 = 1,
+    R3 = 2,
+}
+
+pub enum JoypadAnalog {
+    LeftX(i16),
+    LeftY(i16),
+    RightX(i16),
+    RightY(i16),
+}
+
+pub enum JoypadEvent {
+    Pressed(JoypadButton),
+    Released(JoypadButton),
+    Analog(JoypadAnalog),
+}
+
 impl Emulator {
     /// Create a new emulator instance
-    pub fn new() -> (Self, HeapCons<SoundFrame>) {
+    pub fn new() -> (Self, HeapCons<SoundFrame>, crossbeam_channel::Sender<JoypadEvent>) {
         let cpu = Cpu::new();
         let debugger = Debugger::new();
         let breakpoint = debugger.triggered.clone();
@@ -36,16 +70,20 @@ impl Emulator {
         let rb = SharedRb::<Heap<SoundFrame>>::new(44100);
         let (sample_producer, sample_consumer) = rb.split();
 
+        let (sender, receiver) = crossbeam_channel::unbounded::<JoypadEvent>();
+
         (
             Emulator {
                 cpu,
                 debugger,
                 cycles: 0,
                 sample_producer,
+                joypad_receiver: receiver,
                 in_vblank: false,
                 vsyncs: 0,
             },
             sample_consumer,
+            sender
         )
     }
 
@@ -65,7 +103,7 @@ impl Emulator {
             // Get VRAM frame data (stub: all white)
             let mut frame_data: Vec<u8> = vec![0; 1024 * 512 * 4];
 
-            if true {
+            if false {
                 for y in 0..512 {
                     for x in 0..1024 {
                         let (r, g, b) =
@@ -136,7 +174,7 @@ impl Emulator {
     }
 
     pub fn run_until(&mut self, pc: u32) -> bool {
-        while self.cpu.pc != pc {
+        while self.cpu.npc != pc {
             if self.step() {
                 // Exit if the debugger has requested to quit
                 return true;
@@ -173,9 +211,20 @@ impl Emulator {
         self.cpu.step();
         self.cycles += 2;
 
+        if self.cpu.bus.dma.pending {
+            self.cpu.bus.dma.delay_cycles -= 2;
+            if self.cpu.bus.dma.delay_cycles <= 0 {
+                println!(
+                    "[Emulator] DMA resumed at PC: {:#x}",
+                    self.cpu.pc
+                );
+                self.cpu.bus.handle_dma_write();
+            }
+        }
+
         let intc = &mut self.cpu.bus.interrupts;
         self.cpu.bus.gpu.update(self.cycles, intc);
-        self.cpu.bus.timers.clock(self.cycles, &self.cpu.bus.gpu);
+        self.cpu.bus.timers.clock(self.cycles, &self.cpu.bus.gpu, intc);
 
         if self.in_vblank != self.cpu.bus.gpu.is_in_vblank {
             self.in_vblank = self.cpu.bus.gpu.is_in_vblank;
@@ -191,7 +240,26 @@ impl Emulator {
             );
         }
 
+        if self.cycles % 50 == 0 {
+            self.cpu.bus.joy.cycle(self.cycles, intc);
+        }
+
         if self.cycles % 768 == 0 {
+            // Handle joypad events
+            while let Ok(event) = self.joypad_receiver.try_recv() {
+                match event {
+                    JoypadEvent::Pressed(button) => {
+                        self.cpu.bus.joy.press_button(button);
+                    }
+                    JoypadEvent::Released(button) => {
+                        self.cpu.bus.joy.release_button(button);
+                    }
+                    JoypadEvent::Analog(analog) => {
+                        // self.cpu.bus.joy.set_analog(analog);
+                    }
+                }
+            }
+
             self.cpu.bus.cdrom.clock(intc);
 
             // Produce a sound frame every 768 cycles (approximately 44100 Hz)

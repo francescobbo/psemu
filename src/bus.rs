@@ -245,10 +245,16 @@ impl Bus {
         Ok(())
     }
 
-    fn handle_dma_write(&mut self) {
+    pub fn handle_dma_write(&mut self) {
         if let Some(active_channel) = self.dma.active_channel() {
             let step = active_channel.step();
             let mut addr = active_channel.base();
+            // println!(
+            //     "[DMA] Channel: {:?} ({}) @ 0x{addr:08x}, step: {step}, direction: {:?}",
+            //     active_channel.sync_mode(),
+            //     active_channel.chopping(),
+            //     active_channel.direction()
+            // );
 
             let (blocks, block_size) = active_channel.transfer_size();
 
@@ -339,41 +345,50 @@ impl Bus {
                 SyncMode::LinkedList => {
                     match active_channel.link() {
                         ChannelLink::Gpu => {
-                            loop {
-                                match active_channel.direction() {
-                                    Direction::FromRam => {
-                                        let header = self
+                            match active_channel.direction() {
+                                Direction::FromRam => {
+                                    println!(
+                                        "[DMA2] GPU -> RAM @ 0x{:08x}",
+                                        addr
+                                    );
+
+                                    let header = self
+                                        .ram
+                                        .read(addr, AccessSize::Word);
+                                    let word_count = header >> 24;
+
+                                    for _ in 0..word_count {
+                                        addr =
+                                            addr.wrapping_add(step as u32);
+                                        let cmd = self
                                             .ram
                                             .read(addr, AccessSize::Word);
-                                        let word_count = header >> 24;
-
-                                        // if word_count > 0 {
-                                        //     println!("[DMA2] GPU <- RAM @ 0x{:08x}, count: {},
-                                        // nextAddr: 0x{:08x}",
-                                        //     addr, word_count, header);
-                                        // }
-
-                                        for _ in 0..word_count {
-                                            addr =
-                                                addr.wrapping_add(step as u32);
-                                            let cmd = self
-                                                .ram
-                                                .read(addr, AccessSize::Word);
-                                            self.gpu.write(0x1f80_1810, cmd);
-                                        }
-
-                                        addr = header & 0xffffff;
-                                        if addr == 0xffffff {
-                                            break;
-                                        }
+                                        self.gpu.write(0x1f80_1810, cmd);
                                     }
-                                    Direction::ToRam => {
-                                        panic!("Cannot DMA2-GPU to ram");
+
+                                    addr = header & 0xffffff;
+                                    if addr == 0xffffff {
+                                        println!("[DMA2] Linked list end reached");
+                                        active_channel.done();
+                                        self.dma.irq(2);
+                                        self.dma.pending = false;
+                                        return;
                                     }
+
+                                    addr &= 0x1f_fffc; // Align to 4 bytes
+
+                                    println!(
+                                        "[DMA2] Linked list next address: 0x{:08x}",
+                                        addr
+                                    );
+                                    active_channel.set_base(addr);
+                                    self.dma.delay_cycles = 1256 + word_count as i32;
+                                    self.dma.pending = true;
+                                }
+                                Direction::ToRam => {
+                                    panic!("Cannot DMA2-GPU to ram");
                                 }
                             }
-                            active_channel.done();
-                            self.dma.irq(2);
                         }
                         _ => {
                             panic!(
@@ -394,7 +409,9 @@ impl Bus {
                                     addr = addr.wrapping_add(step as u32);
                                 }
                                 Direction::ToRam => {
-                                    panic!("Cannot DMA2-GPU to ram");
+                                    let value = self.gpu.read(0x1f80_1810);
+                                    self.ram.write(addr, value, AccessSize::Word);
+                                    addr = addr.wrapping_add(step as u32);
                                 }
                             }
                         }

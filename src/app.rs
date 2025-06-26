@@ -2,7 +2,7 @@ use cpal::{
     StreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
-use std::sync::Arc;
+use std::{os::macos::raw::stat, sync::Arc};
 
 use pixels::{Pixels, SurfaceTexture};
 use ringbuf::{
@@ -10,14 +10,10 @@ use ringbuf::{
     traits::{Consumer, Observer},
 };
 use winit::{
-    application::ApplicationHandler,
-    dpi::LogicalSize,
-    event::WindowEvent,
-    event_loop::{ActiveEventLoop, EventLoopProxy},
-    window::{Window, WindowId},
+    application::ApplicationHandler, dpi::LogicalSize, event::{KeyEvent, WindowEvent}, event_loop::{ActiveEventLoop, EventLoopProxy}, keyboard::{Key, KeyCode, PhysicalKey}, window::{Window, WindowId}
 };
 
-use crate::{MainArguments, emulator::Emulator, executable::Executable};
+use crate::{emulator::{Emulator, JoypadButton, JoypadEvent}, executable::Executable, MainArguments};
 
 #[derive(Debug)]
 pub enum AppEvent {
@@ -34,6 +30,7 @@ pub struct App {
 
     output_device: Option<cpal::Device>,
     sound_stream: Option<cpal::Stream>,
+    joypad_sender: crossbeam_channel::Sender<JoypadEvent>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -45,7 +42,7 @@ impl App {
         event_loop_proxy: EventLoopProxy<AppEvent>,
     ) -> Self {
         // Create a new emulator instance
-        let (mut emulator, sample_consumer) = Emulator::new();
+        let (mut emulator, sample_consumer, joypad_sender) = Emulator::new();
 
         // Set the debugger to be active if the user requested it
         emulator.debugger.steps = args.debug as usize;
@@ -55,14 +52,19 @@ impl App {
         emulator.cpu.bus.rom.load(bios);
 
         // Load the executable from the provided path
-        if let Some(path) = &args.executable {
-            emulator.run_until(0x80030000); // Run until the BIOS entry point
+        if let Some(path) = &args.disk_or_exe {
+            if path.ends_with(".cue") {
+                // Load the CD-ROM image
+                emulator.cpu.bus.cdrom.load_cdrom(path);
+            } else if path.ends_with(".exe") {
+                emulator.run_until(0x80030000); // Run until the BIOS entry point
 
-            let exe =
-                Executable::load(path).expect("Failed to load executable");
+                let exe =
+                    Executable::load(path).expect("Failed to load executable");
 
-            // Load the executable into the CPU
-            exe.load_into(&mut emulator.cpu);
+                // Load the executable into the CPU
+                exe.load_into(&mut emulator.cpu);
+            }
         }
 
         std::thread::spawn(move || {
@@ -77,6 +79,7 @@ impl App {
             pixels: None,
             output_device: output_device,
             sound_stream: None,
+            joypad_sender,
         };
 
         s.start_audio(sample_consumer);
@@ -219,6 +222,44 @@ impl ApplicationHandler<AppEvent> for App {
             WindowEvent::Resized(size) => {
                 if let Some(pixels) = &mut self.pixels {
                     pixels.resize_surface(size.width, size.height).unwrap();
+                }
+            }
+            WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state, repeat: false, .. }, .. } => {
+                let key = if let PhysicalKey::Code(key_code) = physical_key {
+                    key_code
+                } else {
+                    return;
+                };
+                
+                let joypad_button = match key {
+                    KeyCode::KeyW => JoypadButton::Up,
+                    KeyCode::KeyA => JoypadButton::Left,
+                    KeyCode::KeyS => JoypadButton::Down,
+                    KeyCode::KeyD => JoypadButton::Right,
+                    KeyCode::KeyI => JoypadButton::Triangle,
+                    KeyCode::KeyJ => JoypadButton::Square,
+                    KeyCode::KeyK => JoypadButton::Cross,
+                    KeyCode::KeyL => JoypadButton::Circle,
+                    KeyCode::KeyQ => JoypadButton::L1,
+                    KeyCode::KeyE => JoypadButton::R1,
+                    KeyCode::Tab => JoypadButton::L2,
+                    KeyCode::KeyR => JoypadButton::R2,
+                    KeyCode::KeyF => JoypadButton::L3,
+                    KeyCode::KeyG => JoypadButton::R3,
+                    KeyCode::Enter => JoypadButton::Start,
+                    KeyCode::Backspace => JoypadButton::Select,
+                    _ => return, // Ignore other keys
+                };
+
+                // Send the joypad event to the emulator
+                if state.is_pressed() {
+                    if let Err(e) = self.joypad_sender.send(JoypadEvent::Pressed(joypad_button)) {
+                        eprintln!("Failed to send joypad event: {}", e);
+                    }
+                } else {
+                    if let Err(e) = self.joypad_sender.send(JoypadEvent::Released(joypad_button)) {
+                        eprintln!("Failed to send joypad event: {}", e);
+                    }
                 }
             }
             _ => {}

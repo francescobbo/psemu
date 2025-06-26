@@ -107,12 +107,12 @@ impl Spu {
                     }
                     8 => {
                         // ADSR register (not implemented)
-                        println!("Reading ADSR register is not implemented");
+                        // println!("Reading ADSR register is not implemented");
                         0
                     }
                     0xa => {
                         // ADSR2 (not implemented)
-                        println!("Reading ADSR2 register is not implemented");
+                        // println!("Reading ADSR2 register is not implemented");
                         0
                     }
                     0xc => {
@@ -351,25 +351,25 @@ impl Spu {
             }
             0x1f801da0 => {
                 // unused
-                println!(
-                    "Warning: Writing to unused SPU register at address {:#x}",
-                    address
-                );
+                // println!(
+                //     "Warning: Writing to unused SPU register at address {:#x}",
+                //     address
+                // );
             }
             0x1f801da2 => {
                 // Reverb work area start address in sound RAM.
                 // This is the address in sound RAM where the reverb work area starts.
-                println!(
-                    "Warning: Writing to reverb work area start address at {:#x} is not implemented",
-                    address
-                );
+                // println!(
+                //     "Warning: Writing to reverb work area start address at {:#x} is not implemented",
+                //     address
+                // );
             }
             0x1f801da4 => {
                 // Address in sound buffer (divided by 8) that raises an interrupt
-                println!(
-                    "Warning: Writing to sound buffer interrupt address at {:#x} is not implemented",
-                    address
-                );
+                // println!(
+                //     "Warning: Writing to sound buffer interrupt address at {:#x} is not implemented",
+                //     address
+                // );
             }
             0x1f801da6 => {
                 // Sound RAM data transfer address.
@@ -437,10 +437,10 @@ impl Spu {
             }
             0x1f801e00..=0x1f801e5f => {
                 // Internal voice registers, should not be used by software
-                println!(
-                    "Warning: Writing to internal voice register at address {:#x} is not recommended.",
-                    address
-                );
+                // println!(
+                //     "Warning: Writing to internal voice register at address {:#x} is not recommended.",
+                //     address
+                // );
             }
             0x1f801dc0..=0x1f801dff => {
                 // REVERB registers, not implemented
@@ -451,10 +451,10 @@ impl Spu {
             }
             _ => {
                 // Handle other addresses or ignore
-                println!(
-                    "Warning: Writing to unimplemented SPU register at address {:#x}",
-                    address
-                );
+                // println!(
+                //     "Warning: Writing to unimplemented SPU register at address {:#x}",
+                //     address
+                // );
             }
         }
     }

@@ -28,19 +28,23 @@ pub struct Cpu {
     /// The LO register
     pub lo: u32,
 
-    /// The program counter, which points to the next instruction
+    /// The Program Counter, which contains the address of the next instruction
+    /// that will be fetched and executed.
     pub pc: u32,
+
+    // The Next Program Counter, which contains the value that PC will
+    // be set to.
+    pub npc: u32,
+
+    // The PC at which the current instruction was just fetched.
+    pub current_pc: u32,
+
+    pub next_is_bds: bool,
+    pub current_is_bds: bool,
+    pub branch_taken: bool,
 
     /// I/O bus that connects the CPU to the rest of the system.
     pub bus: Bus,
-
-    /// The target of a branch instruction, which will be placed in PC after the
-    /// delay slot.
-    pub branch_target: Option<u32>,
-
-    /// The target of a branch instruction that will be reached after the
-    /// current instruction is executed.
-    pub current_branch_target: Option<u32>,
 
     /// The load delay slot: a load operation that is not completed in the same
     /// cycle as the instruction that performed it.
@@ -61,16 +65,20 @@ pub struct Cpu {
 
     pub last_memory_operation: (AccessType, u32),
 
-    pub steps: u64,
+    pub current_instruction: u32,
 }
 
 /// Represents a delayed load operation.
+#[derive(Debug, Clone, Copy, Default)]
 pub struct DelayedLoad {
     /// The register to load to
     pub target: usize,
 
     /// The value to load
     pub value: u32,
+
+    /// The coprocessor number (if applicable)
+    pub coprocessor: Option<u8>,
 }
 
 impl Cpu {
@@ -80,40 +88,34 @@ impl Cpu {
             hi: 0,
             lo: 0,
             pc: 0xbfc0_0000,
+            npc: 0xbfc0_0004,
+            current_pc: 0xbfc0_0000,
+            next_is_bds: false,
+            current_is_bds: false,
+            branch_taken: false,
             bus: Bus::new(),
-            branch_target: None,
-            current_branch_target: None,
             load_delay: None,
             current_load_delay: None,
             biu_cache_control: 0,
             cop0: control::Cop0::new(),
             gte: gte::Gte::new(),
             last_memory_operation: (AccessType::InstructionFetch, 0),
-
-            steps: 0,
+            current_instruction: 0,
         }
     }
 
     /// Perform one step of the CPU cycle.
     pub fn step(&mut self) {
-        // Take the target of the branch instruction, if we are in a delay slot.
-        self.current_branch_target = self.branch_target.take();
         // Take the load delay, if we have one.
         self.current_load_delay = self.load_delay.take();
+        self.current_is_bds = self.next_is_bds;
+        self.next_is_bds = false;
 
-        // self.steps += 1;
-        // if self.steps > 19290000 {
-        //     // Print the current PC every 1000 steps
-        //     println!("PC: {:08x}", self.pc);
-
-        //     if self.pc == 0xb0 {
-        //         println!("REGS: {:?}", self.registers);
-        //     }
-        // }
+        self.current_pc = self.pc;
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
-        let instruction = match self.fetch_instruction(self.pc) {
+        let instruction = match self.fetch_instruction(self.current_pc) {
             Ok(value) => value,
             Err(err) => {
                 // If we failed to fetch the instruction, we handle the error
@@ -121,32 +123,34 @@ impl Cpu {
                     err,
                     AccessType::InstructionFetch,
                     self.pc,
+                    self.current_pc
                 );
                 return;
             }
         };
 
-        // Update PC to point to the following instruction.
-        self.pc += 4;
+        self.current_instruction = instruction.0;
 
         if self.cop0.should_interrupt() {
+            if instruction.opcode() == 0x12 && instruction.cop_execute() {
+                // GTE execute instructions are handled even if an interrupt
+                // is pending. This is likely a CPU bug, but some games rely on
+                // it.
+                self.gte.execute(instruction);
+            }
+
             // If the coprocessor requests an interrupt, we handle it
             self.handle_load_delay();
-            self.exception(ExceptionCause::Interrupt);
+            self.exception(ExceptionCause::Interrupt, self.current_pc);
             return;
         }
 
+        // Update PC and NPC.
+        self.pc = self.npc;  // Set the PC to the next instruction
+        self.npc = self.npc.wrapping_add(4);  // Prepare the next PC
+
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);
-
-        // If the instruction we just executed was a delay slot - and the slot
-        // did not contain a branch instruction (creating a new delay slot) -
-        // then we need to update the PC to point to the target of the branch.
-        if self.branch_target.is_none() {
-            if let Some(target) = self.current_branch_target.take() {
-                self.pc = target;
-            }
-        }
 
         // If we have a delayed load, we need to write the value to the target
         self.handle_load_delay();
@@ -200,7 +204,7 @@ impl Cpu {
                             instruction.funct(),
                             self.pc - 4
                         );
-                        self.exception(ExceptionCause::ReservedInstruction);
+                        self.exception(ExceptionCause::ReservedInstruction, self.current_pc);
                     }
                 }
             }
@@ -286,7 +290,7 @@ impl Cpu {
                     instruction.opcode(),
                     self.pc - 4
                 );
-                self.exception(ExceptionCause::ReservedInstruction);
+                self.exception(ExceptionCause::ReservedInstruction, self.current_pc);
             }
         }
     }
@@ -323,21 +327,39 @@ impl Cpu {
     /// cycle. Otherwise it marks the load for writeback in the next cycle.
     fn handle_load_delay(&mut self) {
         if let Some(load) = self.current_load_delay.take() {
-            // Write the value to the target register
-            self.registers[load.target] = load.value;
+            match load.coprocessor {
+                Some(0) => {
+                    // COP0 delayed load
+                    self.cop0.write(load.target, load.value)
+                        .expect("Failed to write COP0 delayed load");
+                }
+                Some(2) => {
+                    // GTE delayed load
+                    self.gte.write(load.target, load.value)
+                        .expect("Failed to write GTE delayed load");
+                }
+                None => {
+                    // Write the value to the target register
+                    self.registers[load.target] = load.value;
+                }
+                _ => {
+                    panic!("Invalid coprocessor for delayed load: {:?}", load.coprocessor);
+                }
+            }
         }
     }
 
-    pub(super) fn exception(&mut self, cause: ExceptionCause) {
-        let is_branch_delay_slot = self.current_branch_target.is_some();
-
-        // If there was a branch target, we ignore it
-        self.current_branch_target = None;
-
+    pub(super) fn exception(&mut self, cause: ExceptionCause, epc: u32) {
         self.pc = self.cop0.start_exception(
             cause,
-            self.pc.wrapping_sub(4),
-            is_branch_delay_slot,
+            epc,
+            self.pc,
+            self.current_is_bds,
+            self.branch_taken,
+            (self.current_instruction >> 26) & 3
         );
+        self.npc = self.pc.wrapping_add(4);
+
+        // println!("NPC set to {:08x}", self.npc);
     }
 }

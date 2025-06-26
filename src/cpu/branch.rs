@@ -1,12 +1,31 @@
 use crate::cpu::{Cpu, Instruction};
 
 impl Cpu {
+    fn set_branch_target(&mut self, target: Option<u32>) {
+        self.next_is_bds = true;
+        if let Some(address) = target {
+            if address & 3 != 0 {
+                self.memory_access_exception(
+                    super::MemoryError::AlignmentError,
+                    super::AccessType::InstructionFetch,
+                    address,
+                    address
+                );
+            } else {
+                self.npc = address;
+                self.branch_taken = true;
+            }
+        } else {
+            self.branch_taken = false;
+        }
+    }
+
     /// 00.08 - JR - R-Type
     /// JR rs
     /// PC = GPR[rs]
     pub(super) fn ins_jr(&mut self, instruction: Instruction) {
         let target = self.get_rs(instruction);
-        self.branch_target = Some(target);
+        self.set_branch_target(Some(target));
     }
 
     /// 00.09 - JALR - R-Type
@@ -18,7 +37,7 @@ impl Cpu {
 
         self.write_reg(instruction.rd(), self.pc.wrapping_add(4));
 
-        self.branch_target = Some(target);
+        self.set_branch_target(Some(target));
     }
 
     /// 01.00 - BLTZ - I-Type
@@ -29,7 +48,9 @@ impl Cpu {
         if (self.get_rs(instruction) as i32) < 0 {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -41,7 +62,9 @@ impl Cpu {
         if (self.get_rs(instruction) as i32) >= 0 {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -53,12 +76,14 @@ impl Cpu {
     pub(super) fn ins_bltzal(&mut self, instruction: Instruction) {
         let value = self.get_rs(instruction) as i32;
 
-        self.write_reg(31, self.pc.wrapping_add(4));
+        self.write_reg(31, self.npc);
 
         if value < 0 {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -70,12 +95,14 @@ impl Cpu {
     pub(super) fn ins_bgezal(&mut self, instruction: Instruction) {
         let value = self.get_rs(instruction) as i32;
 
-        self.write_reg(31, self.pc.wrapping_add(4));
+        self.write_reg(31, self.npc);
 
         if value >= 0 {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -84,7 +111,7 @@ impl Cpu {
     /// PC = (PC & 0xf000_0000) | (destination << 2)
     pub(super) fn ins_j(&mut self, instruction: Instruction) {
         let target = (self.pc & 0xf000_0000) | (instruction.jump_target() << 2);
-        self.branch_target = Some(target);
+        self.set_branch_target(Some(target));
     }
 
     /// 03 - JAL - J-Type
@@ -92,10 +119,10 @@ impl Cpu {
     /// GPR[31] = PC + 4
     /// PC = (PC & 0xf000_0000) | (destination << 2)
     pub(super) fn ins_jal(&mut self, instruction: Instruction) {
-        self.write_reg(31, self.pc.wrapping_add(4));
+        self.write_reg(31, self.npc);
 
         let target = (self.pc & 0xf000_0000) | (instruction.jump_target() << 2);
-        self.branch_target = Some(target);
+        self.set_branch_target(Some(target));
     }
 
     /// 04 - BEQ - I-Type
@@ -106,7 +133,9 @@ impl Cpu {
         if self.get_rs(instruction) == self.get_rt(instruction) {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -118,7 +147,9 @@ impl Cpu {
         if self.get_rs(instruction) != self.get_rt(instruction) {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -130,7 +161,9 @@ impl Cpu {
         if (self.get_rs(instruction) as i32) <= 0 {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 
@@ -142,7 +175,9 @@ impl Cpu {
         if (self.get_rs(instruction) as i32) > 0 {
             let target =
                 self.pc.wrapping_add((instruction.simm16() as u32) << 2);
-            self.branch_target = Some(target);
+            self.set_branch_target(Some(target));
+        } else {
+            self.set_branch_target(None);
         }
     }
 }
@@ -179,7 +214,8 @@ mod tests {
                 j_type(0x03, 0x2000),
                 // JAL 0x3000 (RA = 0x100c)
                 j_type(0x03, 0x3000),
-                // NOP (delay slot)
+                // Invalid instruction (should not be executed)
+                0xdeadbeef,
             ],
         );
 
@@ -187,6 +223,8 @@ mod tests {
 
         assert_eq!(cpu.pc, 0x3000);
         assert_eq!(cpu.registers[31], 0x100c); // return address
+
+        // TODO: VERIFY THIS BEHAVIOR
     }
 
     #[test]

@@ -1,3 +1,5 @@
+use pixels::wgpu::Color;
+
 use crate::bus::AccessSize;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -89,6 +91,8 @@ pub struct Dma {
     dpcr: u32,
     dicr: u32,
     channels: [Channel; 7],
+    pub delay_cycles: i32,
+    pub pending: bool,
 
     new_irq: bool,
 }
@@ -107,6 +111,8 @@ impl Dma {
                 Channel::new(5),
                 Channel::new(6),
             ],
+            delay_cycles: 0,
+            pending: false,
 
             new_irq: false,
         }
@@ -143,7 +149,6 @@ impl Dma {
             }
             0x70 => {
                 self.dpcr = value;
-                // println!("[DMA] Set DPCR to {:08x}", value);
             }
             0x74 => {
                 self.write_dicr(value);
@@ -194,13 +199,34 @@ impl Dma {
     }
 
     pub fn active_channel(&mut self) -> Option<&mut Channel> {
-        for ch in &mut self.channels {
-            if ch.active() {
-                return Some(ch);
+        let len = self.channels.len(); // avoid double borrowing
+
+        for i in 0..len {
+            let link = self.channels[i].link(); // immutable borrow for enabled()
+            if self.enabled(link) {
+                // Now we can mutably borrow
+                if self.channels[i].active() {
+                    return Some(&mut self.channels[i]);
+                }
             }
         }
 
         None
+    }
+
+    fn enabled(&self, link: ChannelLink) -> bool {
+        // Check if the channel is enabled in DPCR
+        let bit = match link {
+            ChannelLink::MdecIn => 3,
+            ChannelLink::MdecOut => 7,
+            ChannelLink::Gpu => 11,
+            ChannelLink::Cdrom => 15,
+            ChannelLink::Spu => 19,
+            ChannelLink::Pio => 23,
+            ChannelLink::Otc => 27,
+        };
+
+        (self.dpcr & (1 << bit)) != 0
     }
 
     fn write_dicr(&mut self, value: u32) {
@@ -325,11 +351,19 @@ impl Channel {
     }
 
     pub fn transfer_size(&self) -> (u32, u32) {
+        if self.block_size == 0 {
+            return (self.block_count, 0x10000);
+        }
+
         (self.block_count, self.block_size)
     }
 
     pub fn sync_mode(&self) -> SyncMode {
         self.sync_mode
+    }
+
+    pub fn chopping(&self) -> bool {
+        self.chopping == Chopping::Enabled
     }
 
     pub fn direction(&self) -> Direction {
@@ -347,7 +381,7 @@ impl Channel {
         (self.block_count << 16) | self.block_size
     }
 
-    fn set_base(&mut self, value: u32) {
+    pub fn set_base(&mut self, value: u32) {
         self.base = value & 0x1f_fffc;
 
         // println!("[DMA] D{}_MADR = {:08x}", self.n, self.base);

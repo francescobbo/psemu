@@ -123,7 +123,7 @@ impl Debugger {
 
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, AccessSize::Word).unwrap();
-        let is_branch_delay_slot = cpu.branch_target.is_some();
+        let is_branch_delay_slot = cpu.next_is_bds;
 
         println!(
             "[{:08x}] {}  {}",

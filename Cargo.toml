@@ -7,6 +7,7 @@ edition = "2024"
 bitfield = "0.19"
 clap = { version = "4.0", features = ["derive"] }
 cpal = "0.16"
+crossbeam-channel = "0.5"
 ctrlc = "*"
 image = "0.24"
 pixels = "0.15"
@@ -15,6 +16,7 @@ regex = "1.8"
 ringbuf = "0.4.8"
 rustyline = "15.0.0"
 winit = "0.30"
+sha1 = "*"
 
 [profile.dev]
 # Turn on a small amount of optimisation in Development mode.

@@ -1,4 +1,4 @@
-use crate::gpu::Gpu;
+use crate::{gpu::Gpu, interrupts::InterruptController};
 
 #[derive(Debug, Default)]
 pub struct Timers {
@@ -35,7 +35,7 @@ impl Timers {
         Timers::default()
     }
 
-    pub fn clock(&mut self, cpu_cycles: u64, gpu: &Gpu) {
+    pub fn clock(&mut self, cpu_cycles: u64, gpu: &Gpu, intc: &mut InterruptController) {
         let started_hblank = gpu.is_in_hblank && !self.in_hblank;
         let started_vblank = gpu.is_in_vblank && !self.in_vblank;
 
@@ -50,11 +50,12 @@ impl Timers {
             cycles_diff,
             gpu.cpu_clocks_to_dotclocks(cycles_diff),
             started_hblank,
+            intc,
         );
 
-        self.run_t1(cycles_diff, started_hblank, started_vblank);
+        self.run_t1(cycles_diff, started_hblank, started_vblank, intc);
 
-        self.run_t2(cycles_diff);
+        self.run_t2(cycles_diff, intc);
     }
 
     pub fn run_t0(
@@ -62,6 +63,7 @@ impl Timers {
         cpu_cycles: u64,
         dotclock_cycles: f64,
         started_hblank: bool,
+        intc: &mut InterruptController
     ) {
         let timer = &mut self.timers[0];
         if timer.is_synchronized {
@@ -114,19 +116,10 @@ impl Timers {
             timer.add_counter(integral_cycles)
         };
 
-        if of {
-            // If the overflow flag is set, we need to handle it
-            timer.reached_overflow = true;
-            if timer.irq_at_overflow {
-                timer.irq_neg = false; // Set IRQ pending
-            }
-        }
-        if target {
-            // If the target flag is set, we need to handle it
-            timer.reached_target = true;
-            if timer.irq_at_target {
-                timer.irq_neg = false; // Set IRQ pending
-            }
+        let irq = timer.handle_overflows(of, target);
+        if irq {
+            println!("[Timers] T0 IRQ");
+            intc.trigger_irq(4);
         }
     }
 
@@ -135,6 +128,7 @@ impl Timers {
         cpu_cycles: u64,
         started_hblank: bool,
         started_vblank: bool,
+        intc: &mut InterruptController
     ) {
         let timer = &mut self.timers[1];
         if timer.is_synchronized {
@@ -186,23 +180,14 @@ impl Timers {
             }
         };
 
-        if of {
-            // If the overflow flag is set, we need to handle it
-            timer.reached_overflow = true;
-            if timer.irq_at_overflow {
-                timer.irq_neg = false; // Set IRQ pending
-            }
-        }
-        if target {
-            // If the target flag is set, we need to handle it
-            timer.reached_target = true;
-            if timer.irq_at_target {
-                timer.irq_neg = false; // Set IRQ pending
-            }
+        let irq = timer.handle_overflows(of, target);
+        if irq {
+            println!("[Timers] T1 IRQ");
+            intc.trigger_irq(5);
         }
     }
 
-    pub fn run_t2(&mut self, cpu_cycles: u64) {
+    pub fn run_t2(&mut self, cpu_cycles: u64, intc: &mut InterruptController) {
         let timer = &mut self.timers[2];
         if timer.is_synchronized {
             match timer.sync_mode {
@@ -215,7 +200,16 @@ impl Timers {
         let (of, target) = if timer.clock_source == 0 || timer.clock_source == 1
         {
             // when clock source is 0 or 1, t2 follows the CPU clock
-            timer.add_counter(cpu_cycles)
+
+            let r = timer.add_counter(cpu_cycles);
+            if timer.target == 0x0a && timer.reset_at_target {
+                println!(
+                    "[Timers] Running T2 with CPU cycles: {}. New counter: {}",
+                    cpu_cycles, timer.counter
+                );
+            }
+
+            r
         } else {
             // otherwise, t2 follows the CPU clock divided by 8
             self.t2_cpu_cycles_buffer += cpu_cycles as u32;
@@ -231,19 +225,10 @@ impl Timers {
             timer.add_counter(t2_cycles as u64)
         };
 
-        if of {
-            // If the overflow flag is set, we need to handle it
-            timer.reached_overflow = true;
-            if timer.irq_at_overflow {
-                timer.irq_neg = false; // Set IRQ pending
-            }
-        }
-        if target {
-            // If the target flag is set, we need to handle it
-            timer.reached_target = true;
-            if timer.irq_at_target {
-                timer.irq_neg = false; // Set IRQ pending
-            }
+        let irq = timer.handle_overflows(of, target);
+        if irq {
+            println!("[Timers] T2 IRQ");
+            intc.trigger_irq(6);
         }
     }
 
@@ -308,6 +293,10 @@ impl Timers {
         // Writes to the control register acknowledge any pending IRQ
         timer.irq_neg = true; // true means "no IRQ pending", hence "neg"
 
+        if value & 0x80 != 0 {
+            panic!("Not sure how to handle toggle mode IRQ");
+        }
+
         // Writes to the control register reset the counter
         timer.counter = 0;
 
@@ -371,5 +360,42 @@ impl Timer {
         }
 
         (of, target)
+    }
+
+    fn handle_overflows(&mut self, of: bool, target: bool) -> bool {
+        let mut irq = false;
+        if of {
+            self.reached_overflow = true;
+            if self.irq_at_overflow {
+                if self.irq_repeat_mode {
+                    self.irq_neg = false; // Set IRQ pending
+                    irq = true;
+                } else {
+                    // One shot mode, do not set IRQ unless the previous IRQ was cleared
+                    if self.irq_neg {
+                        self.irq_neg = false; // Set IRQ pending
+                        irq = true;
+                    }
+                }
+            }
+        }
+
+        if target {
+            self.reached_target = true;
+            if self.irq_at_target {
+                if self.irq_repeat_mode {
+                    self.irq_neg = false; // Set IRQ pending
+                    irq = true;
+                } else {
+                    // One shot mode, do not set IRQ unless the previous IRQ was cleared
+                    if self.irq_neg {
+                        self.irq_neg = false; // Set IRQ pending
+                        irq = true;
+                    }
+                }
+            }
+        }
+
+        irq
     }
 }

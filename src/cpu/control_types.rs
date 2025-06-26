@@ -70,6 +70,12 @@ bitfield! {
     // IP2, the only hardware interrupt line, wired to the Interrupt controller
     pub ip2, set_ip2: 10;
 
+    // Coprocessor number
+    pub coprocessor_number, set_coprocessor_number: 29, 28;
+
+    // When in a branch delay slot, indicates whether the branch was taken
+    pub branch_taken, set_branch_taken: 30;
+
     // Set to 1 when an exception occurs while executing a branch delay slot
     pub branch_delay, set_branch_delay: 31;
 }

@@ -172,6 +172,7 @@ impl Cpu {
         error: MemoryError,
         access_type: AccessType,
         address: u32,
+        epc: u32,
     ) {
         use AccessType::*;
         use ExceptionCause::*;
@@ -193,7 +194,7 @@ impl Cpu {
             error, address, access_type, self.pc
         );
 
-        self.exception(cause);
+        self.exception(cause, epc);
         if error == AlignmentError {
             self.cop0.bad_vaddr = address;
         }

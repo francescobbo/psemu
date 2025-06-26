@@ -5,6 +5,10 @@ pub struct Gpu {
     is_reading: usize,
     reading_x: usize, // X coordinate for reading pixels
     reading_y: usize, // Y coordinate for reading pixels
+    reading_size_x: usize, // Width of the area being read
+    reading_size_y: usize, // Height of the area being read
+    reading_cur_x: usize, // Current X coordinate in the reading process
+    reading_cur_y: usize, // Current Y coordinate in the reading process
 
     x_offset: isize,
     y_offset: isize,
@@ -78,6 +82,10 @@ impl Gpu {
             is_reading: 0,
             reading_x: 0,
             reading_y: 0,
+            reading_size_x: 0,
+            reading_size_y: 0,
+            reading_cur_x: 0,
+            reading_cur_y: 0,
 
             x_offset: 0,
             y_offset: 0,
@@ -125,12 +133,12 @@ impl Gpu {
     pub fn effective_resolution(&self) -> (usize, usize) {
         let x = (self.display_x2 - self.display_x1)
             / self.dotclock_divider as usize;
-        println!(
-            "[GPU] Effective resolution: {}x{}. Interlaced: {}",
-            x, 480, self.interlace
-        );
 
-        (x, 480)
+        if self.is_pal {
+            (x, 576)
+        } else {
+            (x, 486)
+        }
     }
 
     pub fn get_screen_pixel(&self, x: usize, y: usize) -> (u8, u8, u8) {
@@ -264,37 +272,6 @@ impl Gpu {
         (clocks as f64) * 1.5845 / self.dotclock_divider as f64
     }
 
-    pub fn get_pixel_color(&self, i: usize) -> (u8, u8, u8) {
-        if self.is_24bit {
-            let first = i * 3 / 2;
-            if first + 1 >= self.vram.len() {
-                return (0, 0, 0); // Out of bounds, return black
-            }
-
-            let h0 = self.vram[first];
-            let h1 = self.vram[first + 1];
-
-            let even = (i & 1) == 0;
-            let b = if even { h0 & 0xff } else { h0 >> 8 };
-            let g = if even { (h0 >> 8) & 0xff } else { h1 & 0xff };
-            let r = if even { h1 & 0xff } else { (h1 >> 8) & 0xff };
-
-            (r as u8, g as u8, b as u8)
-        } else {
-            let pixel = self.vram[i];
-
-            let mut r = pixel & 0x1f; // Red channel
-            let mut g = (pixel >> 5) & 0x1f; // Green channel
-            let mut b = (pixel >> 10) & 0x1f; // Blue channel
-
-            r <<= 3;
-            g <<= 3;
-            b <<= 3;
-
-            (r as u8, g as u8, b as u8)
-        }
-    }
-
     pub fn read(&mut self, address: u32) -> u32 {
         if address == 0x1f80_1814 {
             let mut gpu_stat = (self.tex_page_x & 0xf) as u32;
@@ -338,18 +315,24 @@ impl Gpu {
 
         // println!("[GPU] Read operation at address {:#x}", address);
         if self.is_reading > 0 {
-            let px0 = self.vram[self.reading_y * 1024 + self.reading_x];
-            self.reading_x += 1;
-            if self.reading_x >= 1024 {
-                self.reading_x = 0;
-                self.reading_y += 1;
+            let x = (self.reading_x + self.reading_cur_x) % 1024;
+            let y = (self.reading_y + self.reading_cur_y) % 512;
+
+            let px0 = self.vram[y * 1024 + x];
+            self.reading_cur_x += 1;
+            if self.reading_cur_x == self.reading_size_x {
+                self.reading_cur_x = 0;
+                self.reading_cur_y += 1;
             }
 
-            let px1 = self.vram[self.reading_y * 1024 + self.reading_x];
-            self.reading_x += 1;
-            if self.reading_x >= 1024 {
-                self.reading_x = 0;
-                self.reading_y += 1;
+            let x = (self.reading_x + self.reading_cur_x) % 1024;
+            let y = (self.reading_y + self.reading_cur_y) % 512;
+
+            let px1 = self.vram[y * 1024 + x];
+            self.reading_cur_x += 1;
+            if self.reading_cur_x == self.reading_size_x {
+                self.reading_cur_x = 0;
+                self.reading_cur_y += 1;
             }
 
             self.is_reading -= 1;
@@ -417,10 +400,10 @@ impl Gpu {
                         self.display_y2 = ((value >> 10) & 0x3ff) as usize;
                     }
                     0x08 => {
-                        println!(
-                            "[GPU] GP1(08h) - Display mode: {:x}",
-                            value & 0xffffff
-                        );
+                        // println!(
+                        //     "[GPU] GP1(08h) - Display mode: {:x}",
+                        //     value & 0xffffff
+                        // );
 
                         let dividers = [10, 8, 5, 4];
                         if value & (1 << 6) != 0 {
@@ -496,7 +479,7 @@ impl Gpu {
                             {
                                 self.fifo_index
                             } else {
-                                16
+                                10000
                             }
                         } else {
                             if gourad { 4 } else { 3 }
@@ -580,6 +563,9 @@ impl Gpu {
                     }
                 }
             }
+            0x1a => {
+                // ignored
+            }
             0xa0 => {
                 let dest_x = (self.fifo[1] & 0x3ff) as usize;
                 let dest_y = ((self.fifo[1] >> 16) & 0x1ff) as usize;
@@ -615,8 +601,14 @@ impl Gpu {
                 self.reading_x = (self.fifo[1] & 0x3ff) as usize; // X position
                 self.reading_y = ((self.fifo[1] >> 16) & 0x1ff) as usize; // Y position
 
+                self.reading_cur_x = 0;
+                self.reading_cur_y = 0;
+
                 let size_x = (self.fifo[2] & 0x3ff) as usize; // Width
                 let size_y = ((self.fifo[2] >> 16) & 0x1ff) as usize; // Height
+
+                self.reading_size_x = size_x;
+                self.reading_size_y = size_y;
 
                 let total_halfwords = size_x * size_y;
                 let total_words = (total_halfwords + 1) / 2; // Round up if odd
@@ -645,10 +637,10 @@ impl Gpu {
                 // Textured 3/4 point polygon. Opaque/semi-transparent. Texture blending or raw
                 let quad = command & 8 != 0;
                 let semi_transparent = command & 2 != 0;
-                let blending = if command & 4 != 0 {
-                    TextureBlendingMode::Modulated
-                } else {
+                let blending = if command & 1 != 0 {
                     TextureBlendingMode::Raw
+                } else {
+                    TextureBlendingMode::Modulated
                 };
 
                 let clut = self.fifo[2] >> 16;
@@ -768,126 +760,178 @@ impl Gpu {
                     );
                 }
             }
-            // 0x60 => {
-            //     // Fill rectangle in VRAM. Similar to 0x02, but:
-            //     // - respects the offsets
-            //     // - uses the clipping rectangle defined by min_x, min_y, max_x, max_y
+            0x40 | 0x42 | 0x48 | 0x4a => {
+                // Monochrome line or polyline. Opaque/semi-transparent.
+                let semi_transparent = command & 2 != 0;
+                let polyline = command & 8 != 0;
 
-            //     let c = Self::command_to_rgb888(self.fifo[0] & 0xffffff); // Color
-            //     let c = Self::rgb888_to_bgr555(c.0, c.1, c.2) as u16;
+                let v1 = VertexData::from_command(self.fifo[0], self.fifo[1]);
+                let v2 = VertexData::from_command(self.fifo[0], self.fifo[2]);
 
-            //     let x0 = (self.fifo[1] & 0x3ff) as usize; // X position
-            //     let y0 = ((self.fifo[1] >> 16) & 0x1ff) as usize; // Y position
+                let mut points = vec![v1, v2];
 
-            //     let w = (self.fifo[2] & 0x3ff) as usize; // Width
-            //     let h = ((self.fifo[2] >> 16) & 0x1ff) as usize; // Height
+                if polyline {
+                    // Take additional vertices, until one has bits 50005000 set
+                    let mut i = 3;
+                    while i < self.fifo_index {
+                        let v = VertexData::from_command(self.fifo[0], self.fifo[i]);
+                        if self.fifo[i] & 0x50005000 == 0x50005000 {
+                            break; // Stop if we hit the end of the polyline
+                        }
+                        points.push(v);
+                        i += 1;
+                    }
 
-            //     let x0 = ((x0 as isize + self.x_offset) & 0x3ff) as usize; // Wrap around at 1024
-            //     let y0 = ((y0 as isize + self.y_offset) & 0x1ff) as usize; // Wrap around at 512
+                    if i == self.fifo_index {
+                        panic!("Overflowing polyline command: FIFO index is {}, but no end of polyline found", self.fifo_index);
+                    }
+                }
 
-            //     for y in 0..h {
-            //         for x in 0..w {
-            //             if (x0 + x) < self.min_x
-            //                 || (x0 + x) > self.max_x
-            //                 || (y0 + y) < self.min_y
-            //                 || (y0 + y) > self.max_y
-            //             {
-            //                 continue; // Skip pixels outside the clipping rectangle
-            //             }
+                self.polyline(points, semi_transparent);
+            }
+            0x50 | 0x52 | 0x58 | 0x5a => {
+                // Shaded line or polyline. Opaque/semi-transparent.
+                let semi_transparent = command & 2 != 0;
+                let polyline = command & 8 != 0;
 
-            //             let idx =
-            //                 ((y0 + y) & 0x1ff) * 1024 + ((x0 + x) & 0x3ff);
-            //             self.vram[idx] = c;
-            //         }
-            //     }
-            // }
-            // 0x64 | 0x7c => {
-            //     // Textured Rectangle, variable size, opaque, texture-blending
-            //     let modulation_color = self.fifo[0] & 0xffffff; // Color
-            //     let x0 = (self.fifo[1] & 0x3ff) as usize; // X position
-            //     let y0 = ((self.fifo[1] >> 16) & 0x1ff) as usize; // Y position
+                let v1 = VertexData::from_command(self.fifo[0], self.fifo[1]);
+                let v2 = VertexData::from_command(self.fifo[2], self.fifo[3]);
 
-            //     let w = if command == 0x64 {
-            //         (self.fifo[3] & 0x3ff) as usize
-            //     } else {
-            //         16
-            //     };
-            //     let h = if command == 0x64 {
-            //         ((self.fifo[3] >> 16) & 0x1ff) as usize
-            //     } else {
-            //         16
-            //     };
+                let mut points = vec![v1, v2];
 
-            //     let clut = self.fifo[2] >> 16; // CLUT address
-            //     let clut_x = (clut & 0x3f) * 16;
-            //     let clut_y = (clut >> 6) & 0x1ff;
+                if polyline {
+                    // Take additional vertices, until one has bits 50005000 set
+                    let mut i = 4;
+                    while i < self.fifo_index {
+                        let v = VertexData::from_command(self.fifo[i], self.fifo[i + 1]);
+                        if self.fifo[i] & 0x50005000 == 0x50005000 {
+                            break; // Stop if we hit the end of the polyline
+                        }
+                        points.push(v);
+                        i += 2;
+                    }
 
-            //     let tex_x = (self.fifo[2] & 0xff) as usize; // Texture X position
-            //     let tex_y = ((self.fifo[2] >> 8) & 0xff) as usize; // Texture Y position
+                    if i == self.fifo_index {
+                        panic!("Overflowing polyline command: FIFO index is {}, but no end of polyline found", self.fifo_index);
+                    }
+                }
 
-            //     // The process is:
-            //     // Go pixel by pixel (x0 to x0 + w, y0 to y0 + h)
-            //     // For each pixel, sample the texture at:
-            //     //   self.tex_page_x + tex_x + x/4 (wrap around when tex_x + x/4 >= 256)
-            //     // Each byte in the texture has 2 4-bit indices. One byte in the texture covers 2 pixels
-            //     //   (each u16 has 4 pixels, so we need to read 2 bytes for each pixel pair)
-            //     // Extract the 4-bit index for the pixel from the texture
-            //     // Use the index to get the color from the CLUT
-            //     // Then blend the color with the color from the command
+                self.polyline(vec![v1, v2], semi_transparent);
+            }
+            0x60..=0x7f => {
+                // Rectangle command. Opaque/semi-transparent.
+                let semi_transparent = command & 2 != 0;
+                let textured = command & 4 != 0;
 
-            //     // println!(
-            //     //     "[GPU] Drawing textured rectangle at ({}, {}) with size {}x{} and CLUT at ({}, {}). Texture at ({}, {}), with offset ({}, {})",
-            //     //     x0,
-            //     //     y0,
-            //     //     w,
-            //     //     h,
-            //     //     clut_x,
-            //     //     clut_y,
-            //     //     self.tex_page_x,
-            //     //     self.tex_page_y,
-            //     //     tex_x,
-            //     //     tex_y
-            //     // );
+                let mut v0 = VertexData::from_command(self.fifo[0], self.fifo[1]);
 
-            //     for y in 0..h {
-            //         for x in 0..w {
-            //             let tex_x_pos =
-            //                 self.tex_page_x + ((tex_x + x / 4) % 256); // Wrap around at 256
-            //             let tex_y_pos = self.tex_page_y + ((tex_y + y) % 512); // Wrap around at 512
+                let (w, h) = match (command >> 3) & 3 {
+                    0 => {
+                        let line = if textured {
+                            self.fifo[3]
+                        } else {
+                            self.fifo[2]
+                        };
 
-            //             // Get the texture byte
-            //             let tex_byte = self.vram[tex_y_pos * 1024 + tex_x_pos];
+                        let w = line & 0x3ff;
+                        let h = (line >> 16) & 0x1ff;
+                        (w, h)
+                    }
+                    1 => (1, 1),
+                    2 => (8, 8),
+                    3 => (16, 16),
+                    _ => unreachable!()
+                };
 
-            //             // Get the pixel index from the texture byte
-            //             let pixel_index =
-            //                 ((tex_byte >> ((x % 4) * 4)) & 0xf) as usize;
+                v0.vertex.x = (v0.vertex.x + self.x_offset) & 0x3ff;
+                v0.vertex.y = (v0.vertex.y + self.y_offset) & 0x1ff;
 
-            //             // Get the color from the CLUT
-            //             let clut_color = self.vram[(clut_y * 1024
-            //                 + clut_x
-            //                 + pixel_index as u32)
-            //                 as usize];
+                let blending = if command & 1 != 0 {
+                    TextureBlendingMode::Raw
+                } else {
+                    TextureBlendingMode::Modulated
+                };
 
-            //             if clut_color == 0 {
-            //                 // If the CLUT color is 0, skip this pixel (transparent)
-            //                 continue;
-            //             }
+                let (clut_x, clut_y) = if textured {
+                    let clut = (self.fifo[2] >> 16) as usize; // CLUT address
+                    ((clut & 0x3f) * 16, (clut >> 6) & 0x1ff)
+                } else {
+                    (0, 0)
+                };
 
-            //             // Blend the color with the command color (TODO)
-            //             let blended_color = Self::modulate_color_555(
-            //                 clut_color,
-            //                 modulation_color,
-            //             );
+                let tex_coords = if textured {
+                    TextureCoords::from_command(self.fifo[2])
+                } else {
+                    TextureCoords::new(0, 0)
+                };
 
-            //             let idx =
-            //                 ((y0 + y) & 0x1ff) * 1024 + ((x0 + x) & 0x3ff);
-            //             self.vram[idx] = blended_color as u16;
-            //         }
-            //     }
-            // }
-            // 0x68 => {
-            //     self.render_pixel();
-            // }
+                // if command == 0x65 {
+                //     print!("[GPU] {command:02x}: v0: {v0:?} w: {w} h: {h} ");
+                //     println!("\tTex coords: {tex_coords:?} Clut: {clut_x}, {clut_y}");
+                // }
+
+                for yoff in 0..h {
+                    for xoff in 0..w {
+                        let x = (v0.vertex.x + xoff as isize) as usize;
+                        let y = (v0.vertex.y + yoff as isize) as usize;
+
+                        // Skip pixels outside the clipping rectangle
+                        if x < self.min_x || x > self.max_x || y < self.min_y || y > self.max_y {
+                            continue;
+                        }
+
+                        let idx = y * 1024 + x;
+
+                        if textured {
+                            let tex_coords = TextureCoords::new(
+                                (tex_coords.x + xoff as usize) & 0xff,
+                                (tex_coords.y + yoff as usize) & 0xff
+                            );
+                            let texel = self.sample_texture(tex_coords);
+
+                            let tex_color = match self.tex_page_depth {
+                                // 4-bit texture mode, the texel is an index into the CLUT
+                                0 | 1 => Color::from_bgr555(
+                                    self.vram[clut_y * 1024 + clut_x + texel as usize],
+                                ),
+                                2 | 3 => Color::from_bgr555(texel),
+                                _ => unreachable!(),
+                            };
+
+                            if tex_color.r == 0 && tex_color.g == 0 && tex_color.b == 0 {
+                                // Color black has a special treatment.
+                                // when the transparency (bit 15) is clear, the texel is ignored
+
+                                // If the transparency bit of the texel is set, it is rendered.
+                                // That bit is ignored if the command is "opaque" (semi_transparent is false).
+                                // Otherwise the black is blended with the VRAM color.
+
+                                if !tex_color.transparent {
+                                    continue;
+                                }
+
+                                // TODO: Handle semi-transparency blending
+                            }
+
+                            let color = match blending {
+                                TextureBlendingMode::Raw => {
+                                    // Use the texture color directly
+                                    tex_color
+                                }
+                                TextureBlendingMode::Shaded => unreachable!(),
+                                TextureBlendingMode::Modulated => {
+                                    // Modulate the texture color with the main color
+                                    tex_color.modulate(&v0.color)
+                                }
+                            };
+
+                            self.vram[idx] = color.to_bgr555();
+                        } else {
+                            self.vram[idx] = v0.color.to_bgr555();
+                        }
+                    }
+                }
+            }
             0xe1 => {
                 self.tex_page_x = ((self.fifo[0] & 0xf) * 64) as usize; // X position
                 self.tex_page_y = (((self.fifo[0] >> 4) & 1) * 256) as usize; // Y position
@@ -895,17 +939,17 @@ impl Gpu {
                 self.tex_page_depth = ((self.fifo[0] >> 7) & 0x3) as usize; // Depth
                 self.enable_dithering = self.fifo[0] & 0x200 != 0;
 
-                println!("Texpage: {:08x}", self.fifo[0]);
+                // println!("Texpage: {:08x}", self.fifo[0]);
             }
             0xe2 => {
                 let mask_x = self.fifo[0] & 0x1f;
                 let mask_y = (self.fifo[0] >> 5) & 0x1f;
                 let off_x = ((self.fifo[0] >> 10) & 0x1f) as usize;
                 let off_y = ((self.fifo[0] >> 15) & 0x1f) as usize;
-                println!(
-                    "Texture window settings: mask_x: {}, mask_y: {}, off_x: {}, off_y: {}",
-                    mask_x, mask_y, off_x, off_y
-                );
+                // println!(
+                //     "Texture window settings: mask_x: {}, mask_y: {}, off_x: {}, off_y: {}",
+                //     mask_x, mask_y, off_x, off_y
+                // );
             }
             0xe3 => {
                 // Clipping top left corner
@@ -926,13 +970,13 @@ impl Gpu {
                 self.y_offset = ((((self.fifo[0] >> 11) & 0x7ff) as i16) << 5
                     >> 5) as isize;
 
-                println!(
-                    "X offset: {}, Y offset: {}",
-                    self.x_offset, self.y_offset
-                );
+                // println!(
+                //     "X offset: {}, Y offset: {}",
+                //     self.x_offset, self.y_offset
+                // );
             }
             0xe6 => {
-                println!("Mask bit settings: {:#x}", self.fifo[0]);
+                // println!("Mask bit settings: {:#x}", self.fifo[0]);
             }
             _ => {
                 panic!(
@@ -1088,6 +1132,9 @@ impl Gpu {
             || dy12 >= 512
             || dy20 >= 512
         {
+            println!(
+                "[GPU] Skipping triangle rendering: vertices too far apart"
+            );
             // Skip rendering if any two vertices are too far apart
             return;
         }
@@ -1204,6 +1251,31 @@ impl Gpu {
         }
     }
 
+    fn polyline(
+        &mut self,
+        vertices: Vec<VertexData>,
+        semi_transparent: bool,
+    ) {
+        // Draw a polyline by connecting the vertices with lines
+        for i in 0..vertices.len() - 1 {
+            let v1 = vertices[i];
+            let v2 = vertices[i + 1];
+            self.line(v1, v2, semi_transparent);
+        }
+    }
+
+    fn line(
+        &mut self,
+        v1: VertexData,
+        v2: VertexData,
+        semi_transparent: bool
+    ) {
+        println!(
+            "[GPU] Drawing line from ({}, {}) to ({}, {})",
+            v1.vertex.x, v1.vertex.y, v2.vertex.x, v2.vertex.y
+        );
+    }
+
     fn edge_fn(v1: Vertex, v2: Vertex, v3: Vertex) -> f64 {
         let x1 = v1.x as f64 + 0.5;
         let y1 = v1.y as f64 + 0.5;
@@ -1234,6 +1306,7 @@ impl Gpu {
             }
             2 | 3 => {
                 // 16-bit direct mode. Each VRAM halfword contains a 16-bit color.
+                tex_x += coords.x; // Directly use the X coordinate
             }
             _ => {
                 unreachable!(); // Invalid texture depth
@@ -1412,15 +1485,15 @@ impl Color {
     }
 
     fn from_bgr555(color: u16) -> Self {
-        let r = ((color & 0x1f) << 3) as u8; // 5 bits for red
-        let g = (((color >> 5) & 0x1f) << 3) as u8; // 5 bits for green
-        let b = (((color >> 10) & 0x1f) << 3) as u8; // 5 bits for blue
+        let r = ((color & 0x1f)) as u16; // 5 bits for red
+        let g = (((color >> 5) & 0x1f)) as u16; // 5 bits for green
+        let b = (((color >> 10) & 0x1f)) as u16; // 5 bits for blue
         let t = (color & 0x8000) != 0; // Check if the color is semi-transparent
 
         Self {
-            r,
-            g,
-            b,
+            r: (r as f32 / 31.0 * 255.0) as u8,
+            g: (g as f32 / 31.0 * 255.0) as u8,
+            b: (b as f32 / 31.0 * 255.0) as u8,
             transparent: t,
         }
     }
