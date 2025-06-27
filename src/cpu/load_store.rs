@@ -35,6 +35,8 @@ impl Cpu {
 
         let address = self.target_address(instr);
 
+        self.step_cycles += 5;
+
         match self.read_memory(address, AccessSize::Byte) {
             Ok(value) => {
                 // Sign-extend the byte value
@@ -52,6 +54,8 @@ impl Cpu {
     /// GPR[rt] = sign_extend(Memory[rs + offset, 16-bit])
     pub(super) fn ins_lh(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
+
+        self.step_cycles += 5;
 
         match self.read_memory(address, AccessSize::HalfWord) {
             Ok(value) => {
@@ -71,6 +75,8 @@ impl Cpu {
     /// memory address.
     pub(super) fn ins_lwl(&mut self, instr: Instruction) {
         let addr = self.target_address(instr);
+
+        self.step_cycles += 5;
 
         // Perform an aligned load of 4 bytes
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
@@ -102,6 +108,12 @@ impl Cpu {
     pub(super) fn ins_lw(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
 
+        if address >= 0xbfc00000 {
+            self.step_cycles += 24;
+        } else {
+            self.step_cycles += 5;
+        }
+
         match self.read_memory(address, AccessSize::Word) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(err) => {
@@ -115,6 +127,8 @@ impl Cpu {
     /// GPR[rt] = zero_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lbu(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
+
+        self.step_cycles += 5;
 
         match self.read_memory(address, AccessSize::Byte) {
             Ok(value) => self.delayed_load(instr.rt(), value),
@@ -130,6 +144,8 @@ impl Cpu {
     pub(super) fn ins_lhu(&mut self, instr: Instruction) {
         let address = self.target_address(instr);
 
+        self.step_cycles += 5;
+
         match self.read_memory(address, AccessSize::HalfWord) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(err) => {
@@ -144,6 +160,8 @@ impl Cpu {
     /// memory address.
     pub(super) fn ins_lwr(&mut self, instr: Instruction) {
         let addr = self.target_address(instr);
+
+        self.step_cycles += 5;
 
         // Perform an aligned load of 4 bytes
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {

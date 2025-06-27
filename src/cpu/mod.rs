@@ -66,6 +66,9 @@ pub struct Cpu {
     pub last_memory_operation: (AccessType, u32),
 
     pub current_instruction: u32,
+
+    /// Number of cycles consumed by this step
+    pub step_cycles: usize,
 }
 
 /// Represents a delayed load operation.
@@ -101,17 +104,19 @@ impl Cpu {
             gte: gte::Gte::new(),
             last_memory_operation: (AccessType::InstructionFetch, 0),
             current_instruction: 0,
+            step_cycles: 0,
         }
     }
 
     /// Perform one step of the CPU cycle.
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> usize {
         // Take the load delay, if we have one.
         self.current_load_delay = self.load_delay.take();
         self.current_is_bds = self.next_is_bds;
         self.next_is_bds = false;
 
         self.current_pc = self.pc;
+        self.step_cycles = 0;
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
@@ -125,7 +130,7 @@ impl Cpu {
                     self.pc,
                     self.current_pc
                 );
-                return;
+                return 10;
             }
         };
 
@@ -142,7 +147,7 @@ impl Cpu {
             // If the coprocessor requests an interrupt, we handle it
             self.handle_load_delay();
             self.exception(ExceptionCause::Interrupt, self.current_pc);
-            return;
+            return 10;
         }
 
         // Update PC and NPC.
@@ -154,6 +159,8 @@ impl Cpu {
 
         // If we have a delayed load, we need to write the value to the target
         self.handle_load_delay();
+
+        self.step_cycles
     }
 
     /// Fetch the instruction from the given address.
@@ -161,6 +168,21 @@ impl Cpu {
         &mut self,
         address: u32,
     ) -> Result<Instruction, MemoryError> {
+        match address {
+            0..=0x9fffffff => {
+                // cached instruction
+                self.step_cycles += 2;
+            }
+            0xa0000000..=0xafffffff => {
+                // uncached instruction from memory
+                self.step_cycles += 5;
+            }
+            0xb0000000.. => {
+                // uncached instruction from ROM (probably)
+                self.step_cycles += 24;
+            }
+        }
+
         Ok(Instruction(self.read_memory(address, AccessSize::Word)?))
     }
 

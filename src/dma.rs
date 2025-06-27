@@ -199,9 +199,10 @@ impl Dma {
     }
 
     pub fn active_channel(&mut self) -> Option<&mut Channel> {
-        let len = self.channels.len(); // avoid double borrowing
-
-        for i in 0..len {
+        let channels_by_priority = self.channels_by_priority();
+        
+        for pi in 0..channels_by_priority.len() {
+            let i = channels_by_priority[pi];
             let link = self.channels[i].link(); // immutable borrow for enabled()
             if self.enabled(link) {
                 // Now we can mutably borrow
@@ -212,6 +213,31 @@ impl Dma {
         }
 
         None
+    }
+
+    pub fn channels_by_priority(&self) -> [usize; 7] {
+        // The DPCR register defines a priority score for each channel, encoded like:
+        // 0-2   DMA0, MDECin  Priority      (0..7; 0=Highest, 7=Lowest)
+        // 4-6   DMA1, MDECout Priority      (0..7; 0=Highest, 7=Lowest)
+        // 8-10  DMA2, GPU     Priority      (0..7; 0=Highest, 7=Lowest)
+        // etc.
+        // if two channels have the same priority score, then they are sorted
+        // by their number (channel 6 has higher priority than channel 5).
+
+        let mut scored: [(usize, usize); 7] = [0, 1, 2, 3, 4, 5, 6].map(|ch| {
+            let score = ((self.dpcr >> (ch * 4)) & 3) as usize;
+            (ch, score)
+        });
+
+        // Sort by score ascending, then by channel descending
+        scored.sort_by(|&(ch_a, score_a), &(ch_b, score_b)| {
+            score_a
+                .cmp(&score_b)
+                .then_with(|| ch_b.cmp(&ch_a))
+        });
+
+        // Strip off the scores, returning just the channel numbers
+        scored.map(|(ch, _)| ch)
     }
 
     fn enabled(&self, link: ChannelLink) -> bool {
@@ -382,7 +408,7 @@ impl Channel {
     }
 
     pub fn set_base(&mut self, value: u32) {
-        self.base = value & 0x1f_fffc;
+        self.base = value & 0xff_ffff;
 
         // println!("[DMA] D{}_MADR = {:08x}", self.n, self.base);
     }

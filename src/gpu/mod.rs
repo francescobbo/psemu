@@ -38,7 +38,7 @@ pub struct Gpu {
     opacity_flag: usize,
     tex_page_depth: usize, // Color depth of the texture page
 
-    last_cycle: u64, // Last CPU cycle count when the GPU was updated
+    last_cycle: usize, // Last CPU cycle count when the GPU was updated
 
     // GPU cycles counter used to track the dot clock. (when this value exceeds
     // the dotclock_divider, a dot is counted)
@@ -48,7 +48,7 @@ pub struct Gpu {
     // Number of dots rendered in the current scanline
     dots: u64, // Number of dots rendered
     // Scanline counter
-    scanline: u64,
+    scanline: usize,
 
     dotclock_divider: u8, // Divider for the dot clock
     interlace: bool,      // Interlaced mode flag
@@ -135,7 +135,7 @@ impl Gpu {
             / self.dotclock_divider as usize;
 
         if self.is_pal {
-            (x, 576)
+            (x, 486)
         } else {
             (x, 486)
         }
@@ -179,7 +179,7 @@ impl Gpu {
 
     pub fn update(
         &mut self,
-        cycles: u64,
+        cycles: usize,
         interrupt_controller: &mut crate::interrupts::InterruptController,
     ) {
         let delta = cycles - self.last_cycle;
@@ -205,10 +205,13 @@ impl Gpu {
             self.dotclock_counter = 0.0;
             self.is_in_hblank = false; // Exit HBlank
 
-            if self.scanline >= 240 && !self.is_in_vblank {
-                // Enter VBlank
+            if self.scanline == self.display_y2 {
+                // println!("[GPU] ENTERING VBLANK {} {} {}", self.display_y1, self.display_y2, self.scanline);
                 self.is_in_vblank = true;
                 interrupt_controller.trigger_irq(0); // Trigger VBlank interrupt
+            } else if self.scanline == self.display_y1 {
+                // println!("[GPU] EXITING VBLANK. Avoid drawing?");
+                self.is_in_vblank = false;
             }
 
             if !self.interlace {
@@ -219,7 +222,6 @@ impl Gpu {
             if self.scanline >= 313 {
                 // Reset scanline counter for PAL
                 self.scanline = 0;
-                self.is_in_vblank = false; // Exit VBlank
 
                 if self.interlace {
                     // If interlaced, toggle the even/odd field on every frame
@@ -236,11 +238,14 @@ impl Gpu {
             self.dotclock_counter = 0.0;
             self.is_in_hblank = false; // Exit HBlank
 
-            if self.scanline >= 240 && !self.is_in_vblank {
-                // Enter VBlank
+            if self.scanline == self.display_y2 {
+                // println!("[GPU] ENTERING VBLANK {} {} {}", self.display_y1, self.display_y2, self.scanline);
                 self.is_in_vblank = true;
 
                 interrupt_controller.trigger_irq(0); // Trigger VBlank interrupt
+            } else if self.scanline == self.display_y1 {
+                // println!("[GPU] EXITING VBLANK. Avoid drawing?");
+                self.is_in_vblank = false;
             }
 
             if !self.interlace {
@@ -251,7 +256,6 @@ impl Gpu {
             if self.scanline >= 262 {
                 // Reset scanline counter for NTSC
                 self.scanline = 0;
-                self.is_in_vblank = false; // Exit VBlank
 
                 if self.interlace {
                     // If interlaced, we need to reset the even/odd field
@@ -267,7 +271,7 @@ impl Gpu {
         }
     }
 
-    pub fn cpu_clocks_to_dotclocks(&self, clocks: u64) -> f64 {
+    pub fn cpu_clocks_to_dotclocks(&self, clocks: usize) -> f64 {
         // Convert CPU clocks to GPU dot clocks
         (clocks as f64) * 1.5845 / self.dotclock_divider as f64
     }
@@ -280,7 +284,7 @@ impl Gpu {
             gpu_stat |= ((self.tex_page_depth & 0x3) << 7) as u32;
             gpu_stat |= (self.enable_dithering as u32) << 9;
 
-            // todo bits 10, 11, 12, 14, 15, 24, 25-30
+            // todo bits 10, 11, 12, 14, 15, 24, 25-28
             gpu_stat |= (self.interlace as u32) << 13;
 
             let divider_bits = match self.dotclock_divider {
@@ -304,11 +308,20 @@ impl Gpu {
             gpu_stat |= (self.interlace as u32) << 22;
             gpu_stat |= (self.display_enable as u32) << 23;
 
-            let even_odd = self.even_odd && !self.is_in_vblank;
-            gpu_stat |= (even_odd as u32) << 31; // Set the even/odd field bit
+            gpu_stat |= match self.dma_direction {
+                1 => 1, // Regular FIFO
+                2 => self.is_reading as u32, // CPU to VRAM
+                3 => 1, // TODO VRAM to CPU
+                _ => 0,
+            } << 25;
 
             // TMP force bits 26-28 (readyness)
             gpu_stat |= 0x7 << 26; // Force bits 26-28 to 111
+
+            gpu_stat |= (self.dma_direction) << 29;
+
+            let even_odd = self.even_odd && !self.is_in_vblank;
+            gpu_stat |= (even_odd as u32) << 31; // Set the even/odd field bit
 
             return gpu_stat;
         }
@@ -398,6 +411,11 @@ impl Gpu {
                     0x07 => {
                         self.display_y1 = (value & 0x3ff) as usize;
                         self.display_y2 = ((value >> 10) & 0x3ff) as usize;
+
+                        println!(
+                            "[GPU] Display area set to: ({}, {})",
+                            self.display_y1, self.display_y2
+                        );
                     }
                     0x08 => {
                         // println!(
@@ -415,7 +433,7 @@ impl Gpu {
                         }
 
                         self.interlace = (value & 0x24) == 0x24;
-                        self.is_pal = value & 0x80 != 0;
+                        self.is_pal = value & (1 << 3) != 0;
                         self.is_24bit = value & 0x10 != 0;
                     }
                     _ => {
@@ -595,6 +613,27 @@ impl Gpu {
                         src_idx += 1;
                     }
                     dst_idx += 1024;
+                }
+            }
+            0x80 => {
+                // Copy a rectangle from VRAM to another rectangle in VRAM
+                let src = Vertex::from_command(self.fifo[1]);
+                let dst = Vertex::from_command(self.fifo[2]);
+                let width = (self.fifo[3] & 0x3ff) as usize; // Width
+                let height = ((self.fifo[3] >> 16) & 0x1ff) as usize; // Height
+
+                for y in 0..height {
+                    for x in 0..width {
+                        let src_x = (src.x as usize + x) & 0x3ff; // Wrap around at 1024
+                        let src_y = (src.y as usize + y) & 0x1ff; // Wrap around at 512
+                        let dst_x = (dst.x as usize + x) & 0x3ff; // Wrap around at 1024
+                        let dst_y = (dst.y as usize + y) & 0x1ff; // Wrap around at 512
+
+                        let src_idx = src_y * 1024 + src_x;
+                        let dst_idx = dst_y * 1024 + dst_x;
+
+                        self.vram[dst_idx] = self.vram[src_idx];
+                    }
                 }
             }
             0xc0 => {

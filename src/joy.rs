@@ -35,7 +35,7 @@ pub struct Joy {
     active_device: ActiveDevice,
     state: State,
 
-    last_cycles: u64,
+    last_cycles: usize,
 
     controller_transfer_state: ControllerTransferState,
     irq_requested: bool
@@ -74,7 +74,7 @@ impl Joy {
         self.button_state |= 1 << button as u16;
     }
 
-    pub fn cycle(&mut self, cycles: u64, intc: &mut InterruptController) {
+    pub fn cycle(&mut self, cycles: usize, intc: &mut InterruptController) {
         let diff = (cycles - self.last_cycles) as isize;
         self.last_cycles = cycles;
 

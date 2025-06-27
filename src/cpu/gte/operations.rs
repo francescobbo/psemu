@@ -523,15 +523,11 @@ impl Gte {
     }
 
     pub(crate) fn ins_mvmva(&mut self) {
-        println!("mvmva: current_instruction: {:x}. mx: {}. vi: {}, cv: {}", self.current_instruction, self.mx(), self.v_i(), (self.current_instruction >> 13) & 3);
-
         let matrix = match self.mx() {
             0 => self.rotation,
             1 => self.light,
             2 => self.color,
             3 => {
-                // warn!(self.logger, "Use of bogus matrix in mvmva");
-
                 [
                     [
                         -(self.rgb.r as i16) << 4,

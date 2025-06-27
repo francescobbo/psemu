@@ -183,12 +183,6 @@ impl Gte {
         // Flags are reset at the start of each instruction
         self.flags = Flags(0);
 
-        print!("GTE status before {opcode:x}: ");
-        for i in 0..64 {
-            print!("{:08X} ", self.read(i).unwrap());
-        }
-        println!();
-
         self.current_instruction = instruction.0;
 
         match opcode {
@@ -219,12 +213,6 @@ impl Gte {
                 panic!("Unimplemented GTE instruction: {:x}", opcode);
             }
         }
-
-        print!("GTE status after {opcode:x}: ");
-        for i in 0..64 {
-            print!("{:08X} ", self.read(i).unwrap());
-        }
-        println!();
     }
 
     pub fn all_regs(&self) -> [u32; 64] {

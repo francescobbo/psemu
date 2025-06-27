@@ -347,10 +347,16 @@ impl Bus {
                         ChannelLink::Gpu => {
                             match active_channel.direction() {
                                 Direction::FromRam => {
-                                    println!(
-                                        "[DMA2] GPU -> RAM @ 0x{:08x}",
-                                        addr
-                                    );
+                                    if addr == 0xffffff {
+                                        // println!("DMA GPU found end marker");
+                                        active_channel.done();
+                                        self.dma.irq(2);
+                                        self.dma.pending = false;
+                                        return;
+                                    }
+
+                                    let mut addr = addr & !3; // Align to 4 bytes
+                                    addr &= 0x1f_fffc; // Truncate to 21 bits
 
                                     let header = self
                                         .ram
@@ -358,8 +364,7 @@ impl Bus {
                                     let word_count = header >> 24;
 
                                     for _ in 0..word_count {
-                                        addr =
-                                            addr.wrapping_add(step as u32);
+                                        addr = addr.wrapping_add(step as u32);
                                         let cmd = self
                                             .ram
                                             .read(addr, AccessSize::Word);
@@ -367,22 +372,10 @@ impl Bus {
                                     }
 
                                     addr = header & 0xffffff;
-                                    if addr == 0xffffff {
-                                        println!("[DMA2] Linked list end reached");
-                                        active_channel.done();
-                                        self.dma.irq(2);
-                                        self.dma.pending = false;
-                                        return;
-                                    }
-
-                                    addr &= 0x1f_fffc; // Align to 4 bytes
-
-                                    println!(
-                                        "[DMA2] Linked list next address: 0x{:08x}",
-                                        addr
-                                    );
+                                    // println!("[DMA2] NEXT GPU DMA @ {:08x}", addr);
                                     active_channel.set_base(addr);
-                                    self.dma.delay_cycles = 1256 + word_count as i32;
+
+                                    self.dma.delay_cycles = 128 + word_count as i32;
                                     self.dma.pending = true;
                                 }
                                 Direction::ToRam => {

@@ -3,7 +3,7 @@ use crate::{gpu::Gpu, interrupts::InterruptController};
 #[derive(Debug, Default)]
 pub struct Timers {
     timers: [Timer; 3],
-    last_cpu_cycles: u64,
+    last_cpu_cycles: usize,
     dotclock_counter: f64,
     t2_cpu_cycles_buffer: u32,
 
@@ -35,7 +35,7 @@ impl Timers {
         Timers::default()
     }
 
-    pub fn clock(&mut self, cpu_cycles: u64, gpu: &Gpu, intc: &mut InterruptController) {
+    pub fn clock(&mut self, cpu_cycles: usize, gpu: &Gpu, intc: &mut InterruptController) {
         let started_hblank = gpu.is_in_hblank && !self.in_hblank;
         let started_vblank = gpu.is_in_vblank && !self.in_vblank;
 
@@ -60,7 +60,7 @@ impl Timers {
 
     pub fn run_t0(
         &mut self,
-        cpu_cycles: u64,
+        cpu_cycles: usize,
         dotclock_cycles: f64,
         started_hblank: bool,
         intc: &mut InterruptController
@@ -111,7 +111,7 @@ impl Timers {
             self.dotclock_counter += dotclock_cycles;
 
             // take the integral of the dotclock cycles
-            let integral_cycles = self.dotclock_counter as u64;
+            let integral_cycles = self.dotclock_counter as usize;
             self.dotclock_counter -= integral_cycles as f64;
             timer.add_counter(integral_cycles)
         };
@@ -125,7 +125,7 @@ impl Timers {
 
     pub fn run_t1(
         &mut self,
-        cpu_cycles: u64,
+        cpu_cycles: usize,
         started_hblank: bool,
         started_vblank: bool,
         intc: &mut InterruptController
@@ -187,7 +187,7 @@ impl Timers {
         }
     }
 
-    pub fn run_t2(&mut self, cpu_cycles: u64, intc: &mut InterruptController) {
+    pub fn run_t2(&mut self, cpu_cycles: usize, intc: &mut InterruptController) {
         let timer = &mut self.timers[2];
         if timer.is_synchronized {
             match timer.sync_mode {
@@ -222,12 +222,12 @@ impl Timers {
                 t2_cycles += 1;
             }
 
-            timer.add_counter(t2_cycles as u64)
+            timer.add_counter(t2_cycles as usize)
         };
 
         let irq = timer.handle_overflows(of, target);
         if irq {
-            println!("[Timers] T2 IRQ");
+            // println!("[Timers] T2 IRQ");
             intc.trigger_irq(6);
         }
     }
@@ -319,7 +319,7 @@ impl Timers {
 impl Timer {
     /// Adds the specified number of CPU cycles to the timer's counter.
     /// Returns a tuple indicating whether the overflow or target was reached.
-    fn add_counter(&mut self, mut steps: u64) -> (bool, bool) {
+    fn add_counter(&mut self, mut steps: usize) -> (bool, bool) {
         let mut of = false;
         let mut target = false;
         // Check if adding the steps would cross the target.
@@ -341,11 +341,11 @@ impl Timer {
         }
 
         let distance = cap - self.counter;
-        if steps >= distance as u64 {
+        if steps >= distance as usize {
             // If the steps are greater than or equal to the distance to the target,
             // we reach the target and overflow.
             self.counter = 0;
-            steps -= distance as u64;
+            steps -= distance as usize;
             self.counter += steps as u16;
 
             if self.reset_at_target {

@@ -79,6 +79,7 @@ impl Cdrom {
             panic!("[CDROM] Result too large to fit in response buffer");
         }
 
+        self.response_read_index = 0;
         self.response_write_index = 0;
 
         // Clear the response buffer
@@ -738,7 +739,7 @@ impl Cdrom {
                 // };
 
                 self.write_result(vec![
-                    status, 0x00, 0x20, 0x00, b'S', b'C', b'E', b'E',
+                    status, 0x00, 0x20, 0x00, b'P', b'S', b'1', b'E',
                 ]);
                 self.emit_int2();
             }

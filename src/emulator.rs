@@ -14,13 +14,16 @@ pub struct Emulator {
     pub cpu: Cpu,
     pub debugger: Debugger,
 
-    pub cycles: u64,
+    pub cycles: usize,
 
     pub sample_producer: HeapProd<SoundFrame>,
     pub joypad_receiver: crossbeam_channel::Receiver<JoypadEvent>,
 
     in_vblank: bool,
     vsyncs: u64,
+
+    joy_cycle_counter: isize,
+    cdrom_spu_cycle_counter: isize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -81,6 +84,8 @@ impl Emulator {
                 joypad_receiver: receiver,
                 in_vblank: false,
                 vsyncs: 0,
+                joy_cycle_counter: 50,
+                cdrom_spu_cycle_counter: 768,
             },
             sample_consumer,
             sender
@@ -95,7 +100,7 @@ impl Emulator {
             let t0 = std::time::Instant::now();
 
             // run for approximately 1/60th of a second
-            if emulator.run_for_cycles(677_376) {
+            if emulator.run_until_vsync() {
                 // shutdown requested by debugger prompt
                 break;
             }
@@ -103,7 +108,7 @@ impl Emulator {
             // Get VRAM frame data (stub: all white)
             let mut frame_data: Vec<u8> = vec![0; 1024 * 512 * 4];
 
-            if false {
+            if true {
                 for y in 0..512 {
                     for x in 0..1024 {
                         let (r, g, b) =
@@ -118,6 +123,10 @@ impl Emulator {
                 }
             } else {
                 let (rx, ry) = emulator.cpu.bus.gpu.effective_resolution();
+                println!(
+                    "[Emulator] Effective resolution: {}x{}",
+                    rx, ry
+                );
                 for y in 0..ry {
                     for x in 0..rx {
                         let (r, g, b) =
@@ -173,6 +182,24 @@ impl Emulator {
         false
     }
 
+    pub fn run_until_vsync(&mut self) -> bool {
+        let mut initial_state = self.in_vblank;
+
+        loop {
+            if self.step() {
+                return true;
+            }
+
+            if self.in_vblank && !initial_state {
+                break;
+            } else if !self.in_vblank && initial_state {
+                initial_state = false;
+            }
+        }
+
+        return false;
+    }
+
     pub fn run_until(&mut self, pc: u32) -> bool {
         while self.cpu.npc != pc {
             if self.step() {
@@ -208,17 +235,22 @@ impl Emulator {
             .cop0
             .set_hardware_interrupt(self.cpu.bus.interrupts.should_interrupt());
 
-        self.cpu.step();
-        self.cycles += 2;
+        let cycles = self.cpu.step();
+        self.cycles += cycles;
 
         if self.cpu.bus.dma.pending {
-            self.cpu.bus.dma.delay_cycles -= 2;
+            self.cpu.bus.dma.delay_cycles -= cycles as i32;
             if self.cpu.bus.dma.delay_cycles <= 0 {
-                println!(
-                    "[Emulator] DMA resumed at PC: {:#x}",
-                    self.cpu.pc
-                );
+                // println!(
+                //     "[Emulator] DMA resumed at PC: {:#x}",
+                //     self.cpu.pc
+                // );
                 self.cpu.bus.handle_dma_write();
+            } else {
+                // println!(
+                    // "[Emulator] DMA delayed for {} cycles at PC: {:#x}",
+                    // self.cpu.bus.dma.delay_cycles, self.cpu.pc
+                // );
             }
         }
 
@@ -240,12 +272,16 @@ impl Emulator {
             );
         }
 
-        if self.cycles % 50 == 0 {
+        self.joy_cycle_counter -= cycles as isize;
+        self.cdrom_spu_cycle_counter -= cycles as isize;
+
+        if self.joy_cycle_counter <= 0 {
+            self.joy_cycle_counter += 50; // Reset joypad cycle counter
             self.cpu.bus.joy.cycle(self.cycles, intc);
         }
 
-        if self.cycles % 768 == 0 {
-            // Handle joypad events
+        if self.cdrom_spu_cycle_counter <= 0 {
+            self.cdrom_spu_cycle_counter += 768; // Reset CD-ROM/SPU cycle counter
             while let Ok(event) = self.joypad_receiver.try_recv() {
                 match event {
                     JoypadEvent::Pressed(button) => {
