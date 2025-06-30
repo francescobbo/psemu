@@ -534,13 +534,6 @@ impl Voice {
     }
 
     fn key_on(&mut self, ram: &[u8]) {
-        if self.n == 0 {
-            println!(
-                "[SPU] Key ON for voice {} at address {:#x}",
-                self.n, self.start_address
-            );
-        }
-
         self.current_address_internal = self.start_address;
         self.pitch_counter = 0;
         self.current_buffer_idx = 0;
@@ -558,13 +551,6 @@ impl Voice {
             ..(self.current_address_internal + 16) as usize];
 
         Spu::decode_adpcm_block(block, &mut self.decode_buffer);
-
-        // if self.n == 0 {
-        //     println!(
-        //         "[SPU] Decoding next block at address {:#x}. Data: {:?}, Res: {:?}",
-        //         self.current_address_internal, block, self.decode_buffer
-        //     );
-        // }
 
         let loop_end = block[1] & 1 != 0;
         let loop_repeat = block[1] & (1 << 1) != 0;
@@ -627,16 +613,7 @@ impl Voice {
             }
         }
 
-        let sample = gauss::gaussian(self.last4_samples(), self.pitch_counter);
-
-        // if self.n == 0 {
-        //     println!("Gaussian sample: {:#06X}. Last4: {:?}, pc: {:#06X}",
-        //                 sample, self.last4_samples(), self.pitch_counter);
-        // }
-
-        // Update current sample.
-        // In a full implementation, this is where sample interpolation and voice volume would be applied
-        self.current_sample = sample;
+        self.current_sample = gauss::gaussian(self.last4_samples(), self.pitch_counter);
     }
 
     fn get_sample(&self) -> (i16, i16) {
@@ -654,11 +631,6 @@ impl Voice {
 
         let output_l = apply_volume(envelope_sample, actual_volume_left);
         let output_r = apply_volume(envelope_sample, actual_volume_right);
-
-        // if self.n == 0 {
-        //     println!("V0: raw_sample={:#06X} pitch_counter={:#06X} sample_rate={:#06X} adrs={:#06X} vl={:#06X} vr={:#06X} sample_l={:#06X} sample_r={:#06X}",
-        //              self.current_sample, self.pitch_counter, self.sample_rate, self.envelope.level, actual_volume_left, actual_volume_right, output_l, output_r);
-        // }
 
         (output_l, output_r)
     }

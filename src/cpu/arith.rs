@@ -111,7 +111,9 @@ impl Cpu {
             // If the addition was successful, write the result to the destination register
             Some(result) => self.write_reg(instruction.rd(), result as u32),
             // This means overflow occurred
-            None => self.exception(ExceptionCause::Overflow, self.current_pc),
+            None => {
+                self.exception(ExceptionCause::Overflow)
+            }
         }
     }
 
@@ -121,6 +123,13 @@ impl Cpu {
     ///
     /// No overflow exception
     pub(super) fn ins_addu(&mut self, instruction: Instruction) {
+        // println!(
+        //     "ADDU: rd = {}, rs = {}, rt = {}",
+        //     instruction.rd(),
+        //     self.get_rs(instruction),
+        //     self.get_rt(instruction)
+        // );
+
         self.write_reg(
             instruction.rd(),
             self.get_rs(instruction)
@@ -139,7 +148,7 @@ impl Cpu {
 
         match rs.checked_sub(rt) {
             Some(result) => self.write_reg(instruction.rd(), result as u32),
-            None => self.exception(ExceptionCause::Overflow, self.current_pc),
+            None => self.exception(ExceptionCause::Overflow),
         }
     }
 
@@ -167,7 +176,7 @@ impl Cpu {
 
         match value.checked_add(immediate) {
             Some(result) => self.write_reg(instr.rt(), result as u32),
-            None => self.exception(ExceptionCause::Overflow, self.current_pc),
+            None => self.exception(ExceptionCause::Overflow),
         }
     }
 

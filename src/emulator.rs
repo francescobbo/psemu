@@ -25,6 +25,8 @@ pub struct Emulator {
 
     joy_cycle_counter: isize,
     cdrom_spu_cycle_counter: isize,
+
+    tty_buffer: Box<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -95,6 +97,7 @@ impl Emulator {
                 last_frame_time: std::time::Instant::now(),
                 joy_cycle_counter: 50,
                 cdrom_spu_cycle_counter: 768,
+                tty_buffer: Box::new(String::new()),
             },
             sample_consumer,
             sender,
@@ -237,7 +240,12 @@ impl Emulator {
         // Detect the putchar system call and print the character to the
         // console
         if self.cpu.pc == 0xb0 && self.cpu.registers[9] == 0x3d {
-            print!("{}", self.cpu.registers[4] as u8 as char);
+            let char = self.cpu.registers[4] as u8 as char;
+            self.tty_buffer.push(char);
+            if char == '\n' {
+                print!("{}", self.tty_buffer);
+                self.tty_buffer.clear();
+            }
         }
 
         if self.cpu.bus.dma.get_and_clear_new_irq() {

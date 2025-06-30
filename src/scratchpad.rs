@@ -90,18 +90,18 @@ mod tests {
     fn test_sp() {
         let mut sp = Scratchpad::new();
 
-        sp.write(0x0000, 0xff, AccessSize::Byte);
-        assert_eq!(sp.read(0x0000, AccessSize::Byte), 0xff);
+        sp.write(SCRATCHPAD_BASE + 0x0000, 0xff, AccessSize::Byte);
+        assert_eq!(sp.read(SCRATCHPAD_BASE + 0x0000, AccessSize::Byte), 0xff);
 
-        sp.write(0x0002, 0xabcd, AccessSize::HalfWord);
-        assert_eq!(sp.read(0x0002, AccessSize::HalfWord), 0xabcd);
+        sp.write(SCRATCHPAD_BASE + 0x0002, 0xabcd, AccessSize::HalfWord);
+        assert_eq!(sp.read(SCRATCHPAD_BASE + 0x0002, AccessSize::HalfWord), 0xabcd);
 
-        sp.write(0x0004, 0x12345678, AccessSize::Word);
-        assert_eq!(sp.read(0x0004, AccessSize::Word), 0x12345678);
+        sp.write(SCRATCHPAD_BASE + 0x0004, 0x12345678, AccessSize::Word);
+        assert_eq!(sp.read(SCRATCHPAD_BASE + 0x0004, AccessSize::Word), 0x12345678);
 
-        assert_eq!(sp.read(0x0005, AccessSize::Byte), 0x56);
-        assert_eq!(sp.read(0x0004, AccessSize::HalfWord), 0x5678);
-        assert_eq!(sp.read(0x0002, AccessSize::Word), 0x5678abcd);
+        assert_eq!(sp.read(SCRATCHPAD_BASE + 0x0005, AccessSize::Byte), 0x56);
+        assert_eq!(sp.read(SCRATCHPAD_BASE + 0x0004, AccessSize::HalfWord), 0x5678);
+        assert_eq!(sp.read(SCRATCHPAD_BASE + 0x0002, AccessSize::Word), 0x5678abcd);
     }
 
     #[test]

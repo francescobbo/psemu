@@ -9,13 +9,13 @@ impl Cpu {
     /// 00.0C - SYSCALL
     /// Triggers a Syscall exception
     pub fn ins_syscall(&mut self, _instruction: Instruction) {
-        self.exception(ExceptionCause::Syscall, self.current_pc);
+        self.exception(ExceptionCause::Syscall);
     }
 
     /// 00.0D - BREAK
     /// Triggers a Breakpoint exception
     pub fn ins_break(&mut self, _instruction: Instruction) {
-        self.exception(ExceptionCause::Breakpoint, self.current_pc);
+        self.exception(ExceptionCause::Breakpoint);
     }
 
     /// 10.00 - MFC0 - R-Type (kind of)
@@ -103,7 +103,6 @@ impl Cpu {
                     e,
                     AccessType::Read,
                     address,
-                    self.current_pc,
                 );
             }
         };
@@ -120,7 +119,6 @@ impl Cpu {
                     e,
                     AccessType::Write,
                     address,
-                    self.current_pc,
                 );
             }
         }

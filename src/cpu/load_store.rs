@@ -46,10 +46,6 @@ impl Cpu {
     /// LB rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + offset, 8-bit])
     pub(super) fn ins_lb(&mut self, instr: Instruction) {
-        // if self.pc > 0x80010000 && self.pc < 0x90000000 {
-        //     println!("LB  @ {:#x}", self.pc);
-        // }
-
         let address = self.target_address(instr);
 
         self.step_cycles += 5;
@@ -65,7 +61,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     address,
-                    self.current_pc,
                 );
             }
         }
@@ -90,7 +85,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     address,
-                    self.current_pc,
                 );
             }
         }
@@ -113,7 +107,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     addr,
-                    self.current_pc,
                 );
                 return;
             }
@@ -153,7 +146,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     address,
-                    self.current_pc,
                 );
             }
         }
@@ -174,7 +166,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     address,
-                    self.current_pc,
                 );
             }
         }
@@ -195,7 +186,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     address,
-                    self.current_pc,
                 );
             }
         }
@@ -218,7 +208,6 @@ impl Cpu {
                     err,
                     AccessType::Read,
                     addr,
-                    self.current_pc,
                 );
                 return;
             }
@@ -249,7 +238,6 @@ impl Cpu {
                 err,
                 AccessType::Write,
                 address,
-                self.current_pc,
             );
         }
     }
@@ -268,7 +256,6 @@ impl Cpu {
                 err,
                 AccessType::Write,
                 address,
-                self.current_pc,
             );
         }
     }
@@ -306,7 +293,6 @@ impl Cpu {
                 err,
                 AccessType::Write,
                 addr & !3,
-                self.current_pc,
             );
         }
     }
@@ -323,7 +309,6 @@ impl Cpu {
                 err,
                 AccessType::Write,
                 address,
-                self.current_pc,
             );
         }
     }
@@ -359,7 +344,6 @@ impl Cpu {
                 err,
                 AccessType::Write,
                 addr & !3,
-                self.current_pc,
             );
         }
     }

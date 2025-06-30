@@ -37,7 +37,7 @@ pub struct Cpu {
     pub npc: u32,
 
     // The PC at which the current instruction was just fetched.
-    pub current_pc: u32,
+    pub current_instruction_pc: u32,
 
     pub next_is_bds: bool,
     pub current_is_bds: bool,
@@ -92,7 +92,7 @@ impl Cpu {
             lo: 0,
             pc: 0xbfc0_0000,
             npc: 0xbfc0_0004,
-            current_pc: 0xbfc0_0000,
+            current_instruction_pc: 0,
             next_is_bds: false,
             current_is_bds: false,
             branch_taken: false,
@@ -115,20 +115,19 @@ impl Cpu {
         self.current_is_bds = self.next_is_bds;
         self.next_is_bds = false;
 
-        self.current_pc = self.pc;
+        self.current_instruction_pc = self.pc;
         self.step_cycles = 0;
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
-        let instruction = match self.fetch_instruction(self.current_pc) {
+        let instruction = match self.fetch_instruction(self.current_instruction_pc) {
             Ok(value) => value,
             Err(err) => {
                 // If we failed to fetch the instruction, we handle the error
                 self.memory_access_exception(
                     err,
                     AccessType::InstructionFetch,
-                    self.pc,
-                    self.current_pc,
+                    self.current_instruction_pc,
                 );
                 return 10;
             }
@@ -146,7 +145,7 @@ impl Cpu {
 
             // If the coprocessor requests an interrupt, we handle it
             self.handle_load_delay();
-            self.exception(ExceptionCause::Interrupt, self.current_pc);
+            self.exception(ExceptionCause::Interrupt);
             return 10;
         }
 
@@ -221,14 +220,8 @@ impl Cpu {
                     0x2a => self.ins_slt(instruction),
                     0x2b => self.ins_sltu(instruction),
                     _ => {
-                        println!(
-                            "Unimplemented funct: {:02x} @ {:08x}",
-                            instruction.funct(),
-                            self.pc - 4
-                        );
                         self.exception(
                             ExceptionCause::ReservedInstruction,
-                            self.current_pc,
                         );
                     }
                 }
@@ -310,14 +303,8 @@ impl Cpu {
             0x32 => self.ins_lwc2(instruction),
             0x3a => self.ins_swc2(instruction),
             _ => {
-                println!(
-                    "Unimplemented opcode: {:02x} @ {:08x}",
-                    instruction.opcode(),
-                    self.pc - 4
-                );
                 self.exception(
                     ExceptionCause::ReservedInstruction,
-                    self.current_pc,
                 );
             }
         }
@@ -382,17 +369,15 @@ impl Cpu {
         }
     }
 
-    pub(super) fn exception(&mut self, cause: ExceptionCause, epc: u32) {
+    pub(super) fn exception(&mut self, cause: ExceptionCause) {
         self.pc = self.cop0.start_exception(
             cause,
-            epc,
+            self.current_instruction_pc,
             self.pc,
             self.current_is_bds,
             self.branch_taken,
             (self.current_instruction >> 26) & 3,
         );
         self.npc = self.pc.wrapping_add(4);
-
-        // println!("NPC set to {:08x}", self.npc);
     }
 }

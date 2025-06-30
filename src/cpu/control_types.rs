@@ -117,7 +117,7 @@ bitfield! {
 
     // Set to 1 to use the boot exception vectors in kseg1, instead of the
     // normal exception vectors in kseg0.
-    pub boot_exception_vectors, _: 22;
+    pub boot_exception_vectors, set_boot_exception_vectors: 22;
 }
 
 impl Default for Status {

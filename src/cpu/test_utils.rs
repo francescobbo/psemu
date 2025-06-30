@@ -8,6 +8,7 @@ pub fn test_cpu(
     instructions: &[u32],
 ) -> Cpu {
     let mut cpu = Cpu::new();
+    cpu.cop0.status.set_boot_exception_vectors(false);
     cpu.pc = INITIAL_PC;
     cpu.npc = INITIAL_PC + 4;
 
