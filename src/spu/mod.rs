@@ -1,7 +1,10 @@
 mod gauss;
 mod voice;
 
-use crate::{bus::AccessSize, spu::voice::{AdsrEnvelope, AdsrPhase}};
+use crate::{
+    bus::AccessSize,
+    spu::voice::{AdsrEnvelope, AdsrPhase},
+};
 
 #[derive(Default, Copy, Clone, Debug)]
 struct Voice {
@@ -17,9 +20,9 @@ struct Voice {
 
     decode_buffer: [i16; 32], // Buffer for decoded ADPCM samples
 
-    pitch_counter: u16,     // Pitch counter for this voice
+    pitch_counter: u16,        // Pitch counter for this voice
     current_buffer_idx: usize, // Current index in the decode buffer
-    current_sample: i16,    // Current sample being played
+    current_sample: i16,       // Current sample being played
 
     volume_left: u16,  // Volume for left channel
     volume_right: u16, // Volume for right channel
@@ -47,19 +50,19 @@ pub struct Spu {
 impl Spu {
     pub fn new() -> Self {
         Spu {
-            volume_left: 0,                     // Default volume left
-            volume_right: 0,                    // Default volume right
-            reverb_vol_left: 0,                 // Default reverb volume left
-            reverb_vol_right: 0,                // Default reverb volume right
-            data_start_address: 0,              // Default data start address
-            data_start_address_internal: 0,     // Internal data start address
+            volume_left: 0,                 // Default volume left
+            volume_right: 0,                // Default volume right
+            reverb_vol_left: 0,             // Default reverb volume left
+            reverb_vol_right: 0,            // Default reverb volume right
+            data_start_address: 0,          // Default data start address
+            data_start_address_internal: 0, // Internal data start address
             ram: vec![0; 512 * 1024], // Initialize sound RAM with 512 KiB of zeroes
             voices: (0..24)
                 .map(|n| Voice::new(n)) // Create 24 voices
                 .collect(),
-            spucnt: 0,                // SPUCNT register, default value
-            key_on_register: 0,       // Key ON register, default value
-            key_off_register: 0,      // Key OFF register, default value
+            spucnt: 0,           // SPUCNT register, default value
+            key_on_register: 0,  // Key ON register, default value
+            key_off_register: 0, // Key OFF register, default value
             transfer_control: 0, // Transfer control register, default value
             reverb_mode: 0,      // Reverb mode register, default value
         }
@@ -92,8 +95,7 @@ impl Spu {
         let output_r = apply_volume(clamped_r, self.volume_right as i16);
 
         // Convert to f32
-        (output_l as f32 / 32768.0,
-         output_r as f32 / 32768.0)
+        (output_l as f32 / 32768.0, output_r as f32 / 32768.0)
     }
 
     pub fn read(&self, address: u32, size: AccessSize) -> u32 {
@@ -119,21 +121,17 @@ impl Spu {
                         self.voices[voice_index as usize].start_address >> 3
                     }
                     8 => {
-                        self.voices[voice_index as usize]
-                            .envelope
-                            .read_low() as u32 // Read ADSR register
+                        self.voices[voice_index as usize].envelope.read_low()
+                            as u32 // Read ADSR register
                     }
                     0xa => {
-                        self.voices[voice_index as usize]
-                            .envelope
-                            .read_high() as u32 // Read ADSR2 register
+                        self.voices[voice_index as usize].envelope.read_high()
+                            as u32 // Read ADSR2 register
                     }
                     0xc => {
                         // ADS current volume
                         // println!("Reading current address is not implemented");
-                        self.voices[voice_index as usize]
-                            .envelope
-                            .level as u32
+                        self.voices[voice_index as usize].envelope.level as u32
                     }
                     0xe => {
                         // Repeat address
@@ -477,10 +475,7 @@ impl Spu {
         }
     }
 
-    fn decode_adpcm_block(
-        block: &[u8],
-        decoded: &mut [i16; 32],
-    ) {
+    fn decode_adpcm_block(block: &[u8], decoded: &mut [i16; 32]) {
         // First byte is a header byte specifying the shift value (bits 0-3) and the filter value (bits 4-6).
         // A shift value of 13-15 is invalid and behaves the same as shift=9
         let shift = block[0] & 0x0F;
@@ -633,7 +628,7 @@ impl Voice {
         }
 
         let sample = gauss::gaussian(self.last4_samples(), self.pitch_counter);
-        
+
         // if self.n == 0 {
         //     println!("Gaussian sample: {:#06X}. Last4: {:?}, pc: {:#06X}",
         //                 sample, self.last4_samples(), self.pitch_counter);
@@ -645,7 +640,8 @@ impl Voice {
     }
 
     fn get_sample(&self) -> (i16, i16) {
-        let envelope_sample = apply_volume(self.current_sample, self.envelope.level);
+        let envelope_sample =
+            apply_volume(self.current_sample, self.envelope.level);
 
         if self.volume_left & 0x8000 != 0 {
             panic!("Volume sweep left!")
@@ -668,7 +664,8 @@ impl Voice {
     }
 
     fn last4_samples(&self) -> [i16; 4] {
-        self.decode_buffer[self.current_buffer_idx..= self.current_buffer_idx + 3]
+        self.decode_buffer
+            [self.current_buffer_idx..=self.current_buffer_idx + 3]
             .try_into()
             .expect("Decode buffer should always have at least 4 samples")
     }

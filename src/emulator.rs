@@ -60,8 +60,8 @@ pub enum JoypadEvent {
     Analog(JoypadAnalog),
 }
 
-const NTSC_FRAME_TIME : u64 = 16_666_667 ; // 60 FPS in nanoseconds
-const PAL_FRAME_TIME : u64 = 20_000_000 ; // 50 FPS in nanoseconds
+const NTSC_FRAME_TIME: u64 = 16_666_667; // 60 FPS in nanoseconds
+const PAL_FRAME_TIME: u64 = 20_000_000; // 50 FPS in nanoseconds
 
 impl Emulator {
     /// Create a new emulator instance
@@ -154,13 +154,18 @@ impl Emulator {
 
             let elapsed = emulator.last_frame_time.elapsed();
             let target_duration = std::time::Duration::from_nanos(
-                if emulator.cpu.bus.gpu.is_pal() { PAL_FRAME_TIME } else { NTSC_FRAME_TIME }
+                if emulator.cpu.bus.gpu.is_pal() {
+                    PAL_FRAME_TIME
+                } else {
+                    NTSC_FRAME_TIME
+                },
             );
             if elapsed < target_duration {
                 std::thread::sleep(target_duration - elapsed);
             }
 
-            emulator.last_frame_time = emulator.last_frame_time
+            emulator.last_frame_time = emulator
+                .last_frame_time
                 .checked_add(target_duration)
                 .unwrap_or_else(|| std::time::Instant::now());
         }

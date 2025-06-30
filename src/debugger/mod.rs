@@ -717,8 +717,8 @@ impl Debugger {
         "ZSF3", "ZSF4", "FLAG",
     ];
 
-    fn print_gte_registers(&self, cpu: &Cpu) {
-        let gte = &cpu.gte;
+    fn print_gte_registers(&mut self, cpu: &mut Cpu) {
+        let gte = &mut cpu.gte;
 
         for i in 0..Self::GTE_NAMES.len() {
             let val = gte.read(i).unwrap();

@@ -1,7 +1,7 @@
 pub struct Gpu {
-    fifo: Box<[u32; 100000]>, // FIFO for GPU commands
-    fifo_index: usize,        // Current index in the FIFO
-    pub vram: Vec<u16>,       // Video RAM for storing pixel data
+    fifo: Box<[u32; 1000000]>, // FIFO for GPU commands
+    fifo_index: usize,         // Current index in the FIFO
+    pub vram: Vec<u16>,        // Video RAM for storing pixel data
     is_reading: usize,
     reading_x: usize,      // X coordinate for reading pixels
     reading_y: usize,      // Y coordinate for reading pixels
@@ -76,7 +76,7 @@ impl Gpu {
         let vram = vec![0; 1024 * 512]; // Initialize VRAM with 1024x512 pixels, each pixel is 16 bits (RGB565)
 
         Gpu {
-            fifo: Box::new([0; 100000]),
+            fifo: Box::new([0; 1000000]),
             fifo_index: 0,
             vram,
             is_reading: 0,
@@ -364,6 +364,13 @@ impl Gpu {
                 if value >> 24 == 0 && self.fifo_index == 0 {
                     // NOPs don't even go into the FIFO
                     return;
+                }
+
+                if self.fifo_index == self.fifo.len() {
+                    println!(
+                        "[GPU] FIFO overflow, command: {:08x}",
+                        self.fifo[0]
+                    );
                 }
 
                 // Write to GP0 register

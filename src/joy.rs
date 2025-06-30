@@ -69,7 +69,7 @@ impl Joy {
     }
 
     pub fn press_button(&mut self, button: JoypadButton) {
-        // println!("[JOY] Pressing button {button:?}");
+        println!("[JOY] Pressing button {button:?}");
         self.button_state &= !(1 << button as u16);
     }
 
@@ -197,6 +197,7 @@ impl Joy {
             self.active_device = ActiveDevice::None;
             // self.queue.clear();
             self.state = State::Idle;
+            self.controller_transfer_state = ControllerTransferState::Idle;
             self.update_status();
         }
 
@@ -262,6 +263,11 @@ impl Joy {
         // Unless otherwise specified, response is 0xff
         let mut response = 0xff;
         let mut acknowledged = false;
+
+        // println!(
+        //     "[JOY] Transferring value {value:02x} to {:?} ({:?})",
+        //     self.active_device, self.controller_transfer_state
+        // );
 
         match self.active_device {
             ActiveDevice::None => {

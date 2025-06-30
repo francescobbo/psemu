@@ -105,12 +105,14 @@ impl<F: Read + Seek> CdBinFiles<F> {
         //     "Seeking to sector {sector_number} at address {sector_addr:08x}"
         // );
         if *position != sector_addr {
-            track_file.seek(SeekFrom::Start(sector_addr)).unwrap_or_else(|_| {
-                panic!(
-                    "Failed to seek to sector {sector_number} in track file '{}'",
-                    metadata.file_name
-                )
-            });
+            track_file
+                .seek(SeekFrom::Start(sector_addr))
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to seek to sector {sector_number} in track file '{}'",
+                        metadata.file_name
+                    )
+                });
         }
 
         track_file

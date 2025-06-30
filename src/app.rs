@@ -116,6 +116,8 @@ impl App {
             config.sample_rate = cpal::SampleRate(44100);
         }
 
+        config.buffer_size = cpal::BufferSize::Fixed(500);
+
         let stream = match sample_format {
             SampleFormat::F32 => Self::start_audio_consumer::<f32>(
                 &self.output_device.as_ref().unwrap(),
@@ -158,15 +160,19 @@ impl App {
         T: SizedSample + FromSample<f32>,
     {
         let err_fn = |err| eprintln!("Stream error: {}", err);
-        
+
         let stream = device
             .build_output_stream(
                 config,
                 move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
-                    // println!(
-                    //     "Audio callback called with {} frames. Consumer has {} frames.",
-                    //     output.len() / 2, consumer.occupied_len()
-                    // );
+                    if consumer.occupied_len() < output.len() / 2 {
+                        // If we don't have enough samples, fill with silence
+                        // println!(
+                        //     "Not enough samples in the ring buffer. Occupied: {}, Required: {}",
+                        //     consumer.occupied_len(),
+                        //     output.len() / 2
+                        // );
+                    }
 
                     for frame in output.chunks_mut(2) {
                         if let Some(sound_frame) = consumer.try_pop() {

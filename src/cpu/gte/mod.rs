@@ -1,3 +1,5 @@
+use std::{fs::File, io::Write};
+
 use crate::cpu::Instruction;
 
 mod division;
@@ -22,6 +24,8 @@ struct XY {
 type Matrix = [[i16; 3]; 3];
 
 pub struct Gte {
+    file: File,
+
     current_instruction: u32,
 
     cr: [u32; 32],
@@ -111,21 +115,11 @@ bitfield! {
 }
 
 impl Gte {
-    pub fn hash(&self) -> u64 {
-        // A simple hash function for the GTE state
-        let mut hash: u64 = 0xcbf29ce484222325;
-        for i in 0..64 {
-            let val = self.read(i).unwrap();
-            hash ^= val as u64;
-            hash = hash.wrapping_mul(0x100000001b3);
-        }
-
-        hash
-    }
-
     /// Creates a new GTE instance
     pub fn new() -> Self {
         Gte {
+            file: File::create("gte.log").unwrap(),
+
             current_instruction: 0,
 
             cr: [0; 32],
@@ -215,7 +209,7 @@ impl Gte {
         }
     }
 
-    pub fn all_regs(&self) -> [u32; 64] {
+    pub fn all_regs(&mut self) -> [u32; 64] {
         let mut regs = [0; 64];
 
         for i in 0..64 {
@@ -363,7 +357,7 @@ impl Gte {
     }
 
     /// Reads a value from a GTE register
-    pub fn read(&self, register: usize) -> Option<u32> {
+    pub fn read(&mut self, register: usize) -> Option<u32> {
         let val = match register {
             0 => {
                 (self.vectors[0][0] as u16 as u32)
@@ -464,6 +458,10 @@ impl Gte {
 
             _ => return None,
         };
+
+        // self.file
+        //     .write_all(format!("GTE read: {:02x} = {:08x}\n", register, val).as_bytes())
+        //     .unwrap();
 
         Some(val)
     }

@@ -718,7 +718,10 @@ impl Cdrom {
             println!("[CDROM] Command {command:?} queued, interrupts pending");
             CommandState::CommandQueued { command, cycles }
         } else {
-            CommandState::ReceivingCommand { command, cycles_remaining: cycles }
+            CommandState::ReceivingCommand {
+                command,
+                cycles_remaining: cycles,
+            }
         };
     }
 

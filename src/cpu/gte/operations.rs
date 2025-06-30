@@ -393,44 +393,35 @@ impl Gte {
     }
 
     pub(crate) fn ins_intpl(&mut self) {
-        self.mac[1] = (self.a_mv(
-            0,
-            ((self.fc[0] as i64) << 12)
-                - (((self.ir[1]) as i32) << 12) as u32 as i64,
-        ) >> self.sf()) as i32;
-        self.mac[2] = (self.a_mv(
-            1,
-            ((self.fc[1] as i64) << 12)
-                - (((self.ir[2]) as i32) << 12) as u32 as i64,
-        ) >> self.sf()) as i32;
-        self.mac[3] = (self.a_mv(
-            2,
-            ((self.fc[2] as i64) << 12)
-                - (((self.ir[3]) as i32) << 12) as u32 as i64,
-        ) >> self.sf()) as i32;
+        let irs: [i32; 3] = [
+            (self.ir[1] as i32) << 12,
+            (self.ir[2] as i32) << 12,
+            (self.ir[3] as i32) << 12,
+        ];
 
-        let lm_b = self.lm_b(0, self.mac[1], false) as i64;
-        self.mac[1] = self.a_mv(
-            0,
-            (((self.ir[1] as i64) << 12) + self.ir[0] as i64 * lm_b)
-                >> self.sf(),
-        ) as i32;
+        let ir1 = (((self.fc[0] as i64) << 12) - irs[0] as i64) >> self.sf();
+        let ir2 = (((self.fc[1] as i64) << 12) - irs[1] as i64) >> self.sf();
+        let ir3 = (((self.fc[2] as i64) << 12) - irs[2] as i64) >> self.sf();
 
-        let lm_b = self.lm_b(1, self.mac[2], false) as i64;
-        self.mac[2] = self.a_mv(
-            1,
-            (((self.ir[2] as i64) << 12) + self.ir[0] as i64 * lm_b)
-                >> self.sf(),
-        ) as i32;
+        self.ir[1] = self.lm_b(1, ir1 as i32, false);
+        self.ir[2] = self.lm_b(2, ir2 as i32, false);
+        self.ir[3] = self.lm_b(3, ir3 as i32, false);
 
-        let lm_b = self.lm_b(2, self.mac[3], false) as i64;
-        self.mac[3] = self.a_mv(
-            2,
-            (((self.ir[3] as i64) << 12) + self.ir[0] as i64 * lm_b)
-                >> self.sf(),
-        ) as i32;
+        let ir1 = ((self.ir[1] as i64 * self.ir[0] as i64) + irs[0] as i64)
+            >> self.sf();
+        let ir2 = ((self.ir[2] as i64 * self.ir[0] as i64) + irs[1] as i64)
+            >> self.sf();
+        let ir3 = ((self.ir[3] as i64 * self.ir[0] as i64) + irs[2] as i64)
+            >> self.sf();
 
-        self.mac_to_ir(self.lm());
+        self.mac[1] = self.lm_b(1, ir1 as i32, self.lm()) as i32;
+        self.mac[2] = self.lm_b(2, ir2 as i32, self.lm()) as i32;
+        self.mac[3] = self.lm_b(3, ir3 as i32, self.lm()) as i32;
+
+        self.ir[1] = self.lm_b(1, self.mac[1], self.lm());
+        self.ir[2] = self.lm_b(2, self.mac[2], self.lm());
+        self.ir[3] = self.lm_b(3, self.mac[3], self.lm());
+
         self.mac_to_rgb_fifo();
     }
 
