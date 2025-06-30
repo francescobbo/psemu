@@ -5,19 +5,23 @@ enum State {
     Idle,
     Transmitting,
     PendingTransmission { value: u8, ticks: isize },
-    PendingAck { ticks: isize }
+    PendingAck { ticks: isize },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ActiveDevice {
     None,
     Controller,
-    MemoryCard
+    MemoryCard,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum ControllerTransferState {
-    Idle, Ready, IDMSB, ButtonsLSB, ButtonsMSB
+    Idle,
+    Ready,
+    IDMSB,
+    ButtonsLSB,
+    ButtonsMSB,
 }
 
 pub struct Joy {
@@ -38,7 +42,7 @@ pub struct Joy {
     last_cycles: usize,
 
     controller_transfer_state: ControllerTransferState,
-    irq_requested: bool
+    irq_requested: bool,
 }
 
 impl Joy {
@@ -60,7 +64,7 @@ impl Joy {
             last_cycles: 0,
 
             controller_transfer_state: ControllerTransferState::Idle,
-            irq_requested: false
+            irq_requested: false,
         }
     }
 
@@ -92,7 +96,10 @@ impl Joy {
                 if updated < 0 {
                     self.perform_transfer()
                 } else {
-                    self.state = State::PendingTransmission { ticks: updated, value };
+                    self.state = State::PendingTransmission {
+                        ticks: updated,
+                        value,
+                    };
                 }
             }
             _ => {}
@@ -106,7 +113,7 @@ impl Joy {
 
     pub fn read(&mut self, address: u32) -> u32 {
         // println!("READING JOY at {address:08x}");
-        
+
         if address == 0x1f80_1040 {
             if matches!(self.state, State::PendingTransmission { .. }) {
                 // println!("Performing early transfer due to data read");
@@ -129,7 +136,7 @@ impl Joy {
             }
 
             let stat = self.stat;
-            self.stat &= !(1<<7); // ???
+            self.stat &= !(1 << 7); // ???
             stat
         } else if address == 0x1f80_104a {
             // println!("[JOY] Read CTRL");
@@ -143,7 +150,7 @@ impl Joy {
 
     pub fn write(&mut self, address: u32, value: u32) {
         // println!("WRITING JOY at {address:08x}: {value:08x}");
-        
+
         if address == 0x1f80_1040 {
             if self.transmit_buffer_full {
                 println!("[JOY] Buffer overrun");
@@ -159,7 +166,10 @@ impl Joy {
             if self.state == State::Idle && self.ctrl & 3 == 3 {
                 self.begin_transfer();
             } else {
-                println!("Data written but I'm in {:?} {:08x}", self.state, self.ctrl);
+                println!(
+                    "Data written but I'm in {:?} {:08x}",
+                    self.state, self.ctrl
+                );
             }
         } else if address == 0x1f80_1048 {
             self.mode = value;
@@ -193,7 +203,10 @@ impl Joy {
         if value & 2 == 0 && value & 1 == 0 {
             self.state = State::Idle; // Idle state
         } else {
-            if self.state == State::Idle && self.transmit_buffer_full && value & 3 == 3 {
+            if self.state == State::Idle
+                && self.transmit_buffer_full
+                && value & 3 == 3
+            {
                 self.begin_transfer();
             }
         }
@@ -207,7 +220,10 @@ impl Joy {
 
         // println!("Begun transmit of value {value}");
 
-        self.state = State::PendingTransmission { value, ticks: (self.baud * 8) as isize }
+        self.state = State::PendingTransmission {
+            value,
+            ticks: (self.baud * 8) as isize,
+        }
     }
 
     fn update_status(&mut self) {
@@ -231,7 +247,8 @@ impl Joy {
     }
 
     fn perform_transfer(&mut self) {
-        let value = if let State::PendingTransmission { value, .. } = self.state {
+        let value = if let State::PendingTransmission { value, .. } = self.state
+        {
             value
         } else {
             panic!("Not in a pending transmission")
@@ -315,7 +332,8 @@ impl Joy {
         match self.controller_transfer_state {
             ControllerTransferState::Idle => {
                 if value == 1 {
-                    self.controller_transfer_state = ControllerTransferState::Ready;
+                    self.controller_transfer_state =
+                        ControllerTransferState::Ready;
                     return (0xff, true);
                 }
 
@@ -323,7 +341,8 @@ impl Joy {
             }
             ControllerTransferState::Ready => {
                 if value == 0x42 {
-                    self.controller_transfer_state = ControllerTransferState::IDMSB;
+                    self.controller_transfer_state =
+                        ControllerTransferState::IDMSB;
                     // 0x41 = low byte of Controller Identifier
                     return (0x41, true);
                 }
@@ -331,17 +350,19 @@ impl Joy {
                 return (0xff, false);
             }
             ControllerTransferState::IDMSB => {
-                self.controller_transfer_state = ControllerTransferState::ButtonsLSB;
+                self.controller_transfer_state =
+                    ControllerTransferState::ButtonsLSB;
                 // 0x51 = high byte of controller identifier
-                return (0x5a, true)
+                return (0x5a, true);
             }
             ControllerTransferState::ButtonsLSB => {
-                self.controller_transfer_state = ControllerTransferState::ButtonsMSB;
-                return ((self.button_state & 0xff) as u8, true)
+                self.controller_transfer_state =
+                    ControllerTransferState::ButtonsMSB;
+                return ((self.button_state & 0xff) as u8, true);
             }
             ControllerTransferState::ButtonsMSB => {
                 self.controller_transfer_state = ControllerTransferState::Idle;
-                return ((self.button_state >> 8) as u8, false)
+                return ((self.button_state >> 8) as u8, false);
             }
         }
     }

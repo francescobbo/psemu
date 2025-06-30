@@ -128,7 +128,7 @@ impl Cpu {
                     err,
                     AccessType::InstructionFetch,
                     self.pc,
-                    self.current_pc
+                    self.current_pc,
                 );
                 return 10;
             }
@@ -151,8 +151,8 @@ impl Cpu {
         }
 
         // Update PC and NPC.
-        self.pc = self.npc;  // Set the PC to the next instruction
-        self.npc = self.npc.wrapping_add(4);  // Prepare the next PC
+        self.pc = self.npc; // Set the PC to the next instruction
+        self.npc = self.npc.wrapping_add(4); // Prepare the next PC
 
         // Execute the instruction based on its opcode and function code.
         self.execute(instruction);
@@ -226,7 +226,10 @@ impl Cpu {
                             instruction.funct(),
                             self.pc - 4
                         );
-                        self.exception(ExceptionCause::ReservedInstruction, self.current_pc);
+                        self.exception(
+                            ExceptionCause::ReservedInstruction,
+                            self.current_pc,
+                        );
                     }
                 }
             }
@@ -312,7 +315,10 @@ impl Cpu {
                     instruction.opcode(),
                     self.pc - 4
                 );
-                self.exception(ExceptionCause::ReservedInstruction, self.current_pc);
+                self.exception(
+                    ExceptionCause::ReservedInstruction,
+                    self.current_pc,
+                );
             }
         }
     }
@@ -352,12 +358,14 @@ impl Cpu {
             match load.coprocessor {
                 Some(0) => {
                     // COP0 delayed load
-                    self.cop0.write(load.target, load.value)
+                    self.cop0
+                        .write(load.target, load.value)
                         .expect("Failed to write COP0 delayed load");
                 }
                 Some(2) => {
                     // GTE delayed load
-                    self.gte.write(load.target, load.value)
+                    self.gte
+                        .write(load.target, load.value)
                         .expect("Failed to write GTE delayed load");
                 }
                 None => {
@@ -365,7 +373,10 @@ impl Cpu {
                     self.registers[load.target] = load.value;
                 }
                 _ => {
-                    panic!("Invalid coprocessor for delayed load: {:?}", load.coprocessor);
+                    panic!(
+                        "Invalid coprocessor for delayed load: {:?}",
+                        load.coprocessor
+                    );
                 }
             }
         }
@@ -378,7 +389,7 @@ impl Cpu {
             self.pc,
             self.current_is_bds,
             self.branch_taken,
-            (self.current_instruction >> 26) & 3
+            (self.current_instruction >> 26) & 3,
         );
         self.npc = self.pc.wrapping_add(4);
 

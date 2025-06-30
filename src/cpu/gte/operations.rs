@@ -112,13 +112,22 @@ impl Gte {
     fn norm_color(&mut self, sf: u32, lm: bool, v: u32) {
         let mut tmp_vector: [i16; 4] = [0; 4];
 
-        self.multiply_matrix_by_vector(self.light, self.vectors[v as usize], self.null, sf, lm, false);
+        self.multiply_matrix_by_vector(
+            self.light,
+            self.vectors[v as usize],
+            self.null,
+            sf,
+            lm,
+            false,
+        );
 
         tmp_vector[0] = self.ir[1];
         tmp_vector[1] = self.ir[2];
         tmp_vector[2] = self.ir[3];
 
-        self.multiply_matrix_by_vector(self.color, tmp_vector, self.b, sf, lm, false);
+        self.multiply_matrix_by_vector(
+            self.color, tmp_vector, self.b, sf, lm, false,
+        );
 
         self.mac_to_rgb_fifo();
     }
@@ -129,11 +138,21 @@ impl Gte {
         tmp_vector[0] = self.ir[1];
         tmp_vector[1] = self.ir[2];
         tmp_vector[2] = self.ir[3];
-        self.multiply_matrix_by_vector(self.color, tmp_vector, self.b, self.sf(), self.lm(), false);
+        self.multiply_matrix_by_vector(
+            self.color,
+            tmp_vector,
+            self.b,
+            self.sf(),
+            self.lm(),
+            false,
+        );
 
-        self.mac[1] = (((self.rgb.r as i32) << 4) * self.ir[1] as i32) >> self.sf();
-        self.mac[2] = (((self.rgb.g as i32) << 4) * self.ir[2] as i32) >> self.sf();
-        self.mac[3] = (((self.rgb.b as i32) << 4) * self.ir[3] as i32) >> self.sf();
+        self.mac[1] =
+            (((self.rgb.r as i32) << 4) * self.ir[1] as i32) >> self.sf();
+        self.mac[2] =
+            (((self.rgb.g as i32) << 4) * self.ir[2] as i32) >> self.sf();
+        self.mac[3] =
+            (((self.rgb.b as i32) << 4) * self.ir[3] as i32) >> self.sf();
 
         self.mac_to_ir(self.lm());
         self.mac_to_rgb_fifo();
@@ -177,13 +196,15 @@ impl Gte {
             self.null,
             sf,
             lm,
-            false
+            false,
         );
 
         tmp_vector[0] = self.ir[1];
         tmp_vector[1] = self.ir[2];
         tmp_vector[2] = self.ir[3];
-        self.multiply_matrix_by_vector(self.color, tmp_vector, self.b, sf, lm, false);
+        self.multiply_matrix_by_vector(
+            self.color, tmp_vector, self.b, sf, lm, false,
+        );
 
         self.depth_cue(true, false, sf, lm);
     }
@@ -527,17 +548,15 @@ impl Gte {
             0 => self.rotation,
             1 => self.light,
             2 => self.color,
-            3 => {
+            3 => [
                 [
-                    [
-                        -(self.rgb.r as i16) << 4,
-                        (self.rgb.r as i16) << 4,
-                        self.ir[0],
-                    ],
-                    [self.cr[1] as i16, self.cr[1] as i16, self.cr[1] as i16],
-                    [self.cr[2] as i16, self.cr[2] as i16, self.cr[2] as i16],
-                ]
-            }
+                    -(self.rgb.r as i16) << 4,
+                    (self.rgb.r as i16) << 4,
+                    self.ir[0],
+                ],
+                [self.cr[1] as i16, self.cr[1] as i16, self.cr[1] as i16],
+                [self.cr[2] as i16, self.cr[2] as i16, self.cr[2] as i16],
+            ],
             _ => unreachable!(),
         };
 
@@ -634,12 +653,21 @@ impl Gte {
     fn norm_color_color(&mut self, v: u32, sf: u32, lm: bool) {
         let mut tmp_vector: [i16; 4] = [0; 4];
 
-        self.multiply_matrix_by_vector(self.light, self.vectors[v as usize], self.null, sf, lm, false);
+        self.multiply_matrix_by_vector(
+            self.light,
+            self.vectors[v as usize],
+            self.null,
+            sf,
+            lm,
+            false,
+        );
 
         tmp_vector[0] = self.ir[1];
         tmp_vector[1] = self.ir[2];
         tmp_vector[2] = self.ir[3];
-        self.multiply_matrix_by_vector(self.color, tmp_vector, self.b, sf, lm, false);
+        self.multiply_matrix_by_vector(
+            self.color, tmp_vector, self.b, sf, lm, false,
+        );
 
         self.mac[1] = (((self.rgb.r as i32) << 4) * self.ir[1] as i32) >> sf;
         self.mac[2] = (((self.rgb.g as i32) << 4) * self.ir[2] as i32) >> sf;
@@ -670,7 +698,14 @@ impl Gte {
         tmp_vector[0] = self.ir[1];
         tmp_vector[1] = self.ir[2];
         tmp_vector[2] = self.ir[3];
-        self.multiply_matrix_by_vector(self.color, tmp_vector, self.b, self.sf(), self.lm(), false);
+        self.multiply_matrix_by_vector(
+            self.color,
+            tmp_vector,
+            self.b,
+            self.sf(),
+            self.lm(),
+            false,
+        );
 
         self.depth_cue(true, false, self.sf(), self.lm());
     }

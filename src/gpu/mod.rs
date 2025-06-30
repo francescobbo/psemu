@@ -3,12 +3,12 @@ pub struct Gpu {
     fifo_index: usize,        // Current index in the FIFO
     pub vram: Vec<u16>,       // Video RAM for storing pixel data
     is_reading: usize,
-    reading_x: usize, // X coordinate for reading pixels
-    reading_y: usize, // Y coordinate for reading pixels
+    reading_x: usize,      // X coordinate for reading pixels
+    reading_y: usize,      // Y coordinate for reading pixels
     reading_size_x: usize, // Width of the area being read
     reading_size_y: usize, // Height of the area being read
-    reading_cur_x: usize, // Current X coordinate in the reading process
-    reading_cur_y: usize, // Current Y coordinate in the reading process
+    reading_cur_x: usize,  // Current X coordinate in the reading process
+    reading_cur_y: usize,  // Current Y coordinate in the reading process
 
     x_offset: isize,
     y_offset: isize,
@@ -130,15 +130,15 @@ impl Gpu {
         }
     }
 
+    pub fn is_pal(&self) -> bool {
+        self.is_pal
+    }
+
     pub fn effective_resolution(&self) -> (usize, usize) {
         let x = (self.display_x2 - self.display_x1)
             / self.dotclock_divider as usize;
 
-        if self.is_pal {
-            (x, 486)
-        } else {
-            (x, 486)
-        }
+        if self.is_pal { (x, 512) } else { (x, 486) }
     }
 
     pub fn get_screen_pixel(&self, x: usize, y: usize) -> (u8, u8, u8) {
@@ -309,9 +309,9 @@ impl Gpu {
             gpu_stat |= (self.display_enable as u32) << 23;
 
             gpu_stat |= match self.dma_direction {
-                1 => 1, // Regular FIFO
+                1 => 1,                      // Regular FIFO
                 2 => self.is_reading as u32, // CPU to VRAM
-                3 => 1, // TODO VRAM to CPU
+                3 => 1,                      // TODO VRAM to CPU
                 _ => 0,
             } << 25;
 
@@ -411,11 +411,6 @@ impl Gpu {
                     0x07 => {
                         self.display_y1 = (value & 0x3ff) as usize;
                         self.display_y2 = ((value >> 10) & 0x3ff) as usize;
-
-                        println!(
-                            "[GPU] Display area set to: ({}, {})",
-                            self.display_y1, self.display_y2
-                        );
                     }
                     0x08 => {
                         // println!(
@@ -813,7 +808,10 @@ impl Gpu {
                     // Take additional vertices, until one has bits 50005000 set
                     let mut i = 3;
                     while i < self.fifo_index {
-                        let v = VertexData::from_command(self.fifo[0], self.fifo[i]);
+                        let v = VertexData::from_command(
+                            self.fifo[0],
+                            self.fifo[i],
+                        );
                         if self.fifo[i] & 0x50005000 == 0x50005000 {
                             break; // Stop if we hit the end of the polyline
                         }
@@ -822,7 +820,10 @@ impl Gpu {
                     }
 
                     if i == self.fifo_index {
-                        panic!("Overflowing polyline command: FIFO index is {}, but no end of polyline found", self.fifo_index);
+                        panic!(
+                            "Overflowing polyline command: FIFO index is {}, but no end of polyline found",
+                            self.fifo_index
+                        );
                     }
                 }
 
@@ -842,7 +843,10 @@ impl Gpu {
                     // Take additional vertices, until one has bits 50005000 set
                     let mut i = 4;
                     while i < self.fifo_index {
-                        let v = VertexData::from_command(self.fifo[i], self.fifo[i + 1]);
+                        let v = VertexData::from_command(
+                            self.fifo[i],
+                            self.fifo[i + 1],
+                        );
                         if self.fifo[i] & 0x50005000 == 0x50005000 {
                             break; // Stop if we hit the end of the polyline
                         }
@@ -851,7 +855,10 @@ impl Gpu {
                     }
 
                     if i == self.fifo_index {
-                        panic!("Overflowing polyline command: FIFO index is {}, but no end of polyline found", self.fifo_index);
+                        panic!(
+                            "Overflowing polyline command: FIFO index is {}, but no end of polyline found",
+                            self.fifo_index
+                        );
                     }
                 }
 
@@ -862,15 +869,13 @@ impl Gpu {
                 let semi_transparent = command & 2 != 0;
                 let textured = command & 4 != 0;
 
-                let mut v0 = VertexData::from_command(self.fifo[0], self.fifo[1]);
+                let mut v0 =
+                    VertexData::from_command(self.fifo[0], self.fifo[1]);
 
                 let (w, h) = match (command >> 3) & 3 {
                     0 => {
-                        let line = if textured {
-                            self.fifo[3]
-                        } else {
-                            self.fifo[2]
-                        };
+                        let line =
+                            if textured { self.fifo[3] } else { self.fifo[2] };
 
                         let w = line & 0x3ff;
                         let h = (line >> 16) & 0x1ff;
@@ -879,7 +884,7 @@ impl Gpu {
                     1 => (1, 1),
                     2 => (8, 8),
                     3 => (16, 16),
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 v0.vertex.x = (v0.vertex.x + self.x_offset) & 0x3ff;
@@ -915,7 +920,11 @@ impl Gpu {
                         let y = (v0.vertex.y + yoff as isize) as usize;
 
                         // Skip pixels outside the clipping rectangle
-                        if x < self.min_x || x > self.max_x || y < self.min_y || y > self.max_y {
+                        if x < self.min_x
+                            || x > self.max_x
+                            || y < self.min_y
+                            || y > self.max_y
+                        {
                             continue;
                         }
 
@@ -924,20 +933,25 @@ impl Gpu {
                         if textured {
                             let tex_coords = TextureCoords::new(
                                 (tex_coords.x + xoff as usize) & 0xff,
-                                (tex_coords.y + yoff as usize) & 0xff
+                                (tex_coords.y + yoff as usize) & 0xff,
                             );
                             let texel = self.sample_texture(tex_coords);
 
                             let tex_color = match self.tex_page_depth {
                                 // 4-bit texture mode, the texel is an index into the CLUT
                                 0 | 1 => Color::from_bgr555(
-                                    self.vram[clut_y * 1024 + clut_x + texel as usize],
+                                    self.vram[clut_y * 1024
+                                        + clut_x
+                                        + texel as usize],
                                 ),
                                 2 | 3 => Color::from_bgr555(texel),
                                 _ => unreachable!(),
                             };
 
-                            if tex_color.r == 0 && tex_color.g == 0 && tex_color.b == 0 {
+                            if tex_color.r == 0
+                                && tex_color.g == 0
+                                && tex_color.b == 0
+                            {
                                 // Color black has a special treatment.
                                 // when the transparency (bit 15) is clear, the texel is ignored
 
@@ -1290,11 +1304,7 @@ impl Gpu {
         }
     }
 
-    fn polyline(
-        &mut self,
-        vertices: Vec<VertexData>,
-        semi_transparent: bool,
-    ) {
+    fn polyline(&mut self, vertices: Vec<VertexData>, semi_transparent: bool) {
         // Draw a polyline by connecting the vertices with lines
         for i in 0..vertices.len() - 1 {
             let v1 = vertices[i];
@@ -1303,12 +1313,7 @@ impl Gpu {
         }
     }
 
-    fn line(
-        &mut self,
-        v1: VertexData,
-        v2: VertexData,
-        semi_transparent: bool
-    ) {
+    fn line(&mut self, v1: VertexData, v2: VertexData, semi_transparent: bool) {
         println!(
             "[GPU] Drawing line from ({}, {}) to ({}, {})",
             v1.vertex.x, v1.vertex.y, v2.vertex.x, v2.vertex.y
@@ -1524,9 +1529,9 @@ impl Color {
     }
 
     fn from_bgr555(color: u16) -> Self {
-        let r = ((color & 0x1f)) as u16; // 5 bits for red
-        let g = (((color >> 5) & 0x1f)) as u16; // 5 bits for green
-        let b = (((color >> 10) & 0x1f)) as u16; // 5 bits for blue
+        let r = (color & 0x1f) as u16; // 5 bits for red
+        let g = ((color >> 5) & 0x1f) as u16; // 5 bits for green
+        let b = ((color >> 10) & 0x1f) as u16; // 5 bits for blue
         let t = (color & 0x8000) != 0; // Check if the color is semi-transparent
 
         Self {

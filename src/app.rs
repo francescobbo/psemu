@@ -1,8 +1,8 @@
 use cpal::{
-    StreamConfig,
+    FromSample, Sample, SampleFormat, SizedSample, StreamConfig,
     traits::{DeviceTrait, HostTrait, StreamTrait},
 };
-use std::{os::macos::raw::stat, sync::Arc};
+use std::sync::Arc;
 
 use pixels::{Pixels, SurfaceTexture};
 use ringbuf::{
@@ -10,10 +10,19 @@ use ringbuf::{
     traits::{Consumer, Observer},
 };
 use winit::{
-    application::ApplicationHandler, dpi::LogicalSize, event::{KeyEvent, WindowEvent}, event_loop::{ActiveEventLoop, EventLoopProxy}, keyboard::{Key, KeyCode, PhysicalKey}, window::{Window, WindowId}
+    application::ApplicationHandler,
+    dpi::LogicalSize,
+    event::{KeyEvent, WindowEvent},
+    event_loop::{ActiveEventLoop, EventLoopProxy},
+    keyboard::{KeyCode, PhysicalKey},
+    window::{Window, WindowId},
 };
 
-use crate::{emulator::{Emulator, JoypadButton, JoypadEvent}, executable::Executable, MainArguments};
+use crate::{
+    MainArguments,
+    emulator::{Emulator, JoypadButton, JoypadEvent},
+    executable::Executable,
+};
 
 #[derive(Debug)]
 pub enum AppEvent {
@@ -93,13 +102,8 @@ impl App {
         }
 
         let device = self.output_device.as_ref().unwrap();
-
         let supported_config = device.default_output_config().unwrap();
         let sample_format = supported_config.sample_format();
-        if sample_format != cpal::SampleFormat::F32 {
-            panic!("Unsupported sample format: {:?}", sample_format);
-            return;
-        }
 
         let mut config: StreamConfig = supported_config.into();
         let sample_rate = config.sample_rate.0 as f32;
@@ -112,54 +116,28 @@ impl App {
             config.sample_rate = cpal::SampleRate(44100);
         }
 
-        let channels = config.channels as usize;
-
-        let mut last_sample: SoundFrame = SoundFrame(0.0, 0.0);
-        let stream = device
-            .build_output_stream(
+        let stream = match sample_format {
+            SampleFormat::F32 => Self::start_audio_consumer::<f32>(
+                &self.output_device.as_ref().unwrap(),
                 &config,
-                move |output: &mut [f32], _: &cpal::OutputCallbackInfo| {
-                    // Fill output buffer with sine wave
-                    for frame in output.chunks_mut(channels) {
-                        if let Some(sound_frame) = sample_consumer.try_pop() {
-                            // Use the sound frame's value
-                            frame[0] = sound_frame.0 * 5.0;
-                            frame[1] = sound_frame.1 * 5.0;
-                            last_sample = sound_frame;
-
-                            // println!(
-                            //     "Popped sound frame: ({}, {})",
-                            //     sound_frame.0, sound_frame.1
-                            // );
-                        } else {
-                            // If no sound frame is available, fill with silence
-                            frame[0] = last_sample.0;
-                            frame[1] = last_sample.1;
-                        }
-                    }
-
-                    // Reduce the data in the ring buffer to the size of the output buffer,
-                    // for next time this callback is called. That data is never getting
-                    // played.
-                    let cap = output.len() / channels;
-                    if sample_consumer.occupied_len() > cap {
-                        // Skip the excess samples in the ring buffer
-                        // println!(
-                        //     "Skipping {} samples in the ring buffer",
-                        //     sample_consumer.occupied_len() - cap
-                        // );
-                        sample_consumer
-                            .skip(sample_consumer.occupied_len() - cap);
-                        // println!(
-                        //     "New ring buffer size: {}",
-                        //     sample_consumer.occupied_len()
-                        // );
-                    }
-                },
-                |err| eprintln!("Audio error: {}", err),
-                None,
-            )
-            .unwrap();
+                sample_consumer,
+            ),
+            SampleFormat::I16 => Self::start_audio_consumer::<i16>(
+                &self.output_device.as_ref().unwrap(),
+                &config,
+                sample_consumer,
+            ),
+            SampleFormat::U16 => Self::start_audio_consumer::<u16>(
+                &self.output_device.as_ref().unwrap(),
+                &config,
+                sample_consumer,
+            ),
+            _ => {
+                eprintln!("Unsupported sample format: {:?}", sample_format);
+                return;
+            }
+        }
+        .expect("Failed to create audio stream");
 
         // Start the audio stream
         if let Err(e) = stream.play() {
@@ -169,6 +147,61 @@ impl App {
         }
 
         self.sound_stream = Some(stream);
+    }
+
+    fn start_audio_consumer<T>(
+        device: &cpal::Device,
+        config: &cpal::StreamConfig,
+        mut consumer: HeapCons<SoundFrame>,
+    ) -> Result<cpal::Stream, ()>
+    where
+        T: SizedSample + FromSample<f32>,
+    {
+        let err_fn = |err| eprintln!("Stream error: {}", err);
+        
+        let stream = device
+            .build_output_stream(
+                config,
+                move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
+                    // println!(
+                    //     "Audio callback called with {} frames. Consumer has {} frames.",
+                    //     output.len() / 2, consumer.occupied_len()
+                    // );
+
+                    for frame in output.chunks_mut(2) {
+                        if let Some(sound_frame) = consumer.try_pop() {
+                            frame[0] = T::from_sample(sound_frame.0);
+                            frame[1] = T::from_sample(sound_frame.1);
+                        } else {
+                            // If we can't pop a frame, fill with silence
+                            frame[0] = T::from_sample(0.0);
+                            frame[1] = T::from_sample(0.0);
+                        }
+                    }
+
+                    // Reduce the data in the ring buffer to the size of the output buffer,
+                    // for next time this callback is called. That data is never getting
+                    // played.
+                    // let cap = output.len() / 2;
+                    // if consumer.occupied_len() > cap {
+                    //     // Skip the excess samples in the ring buffer
+                    //     // println!(
+                    //     //     "Skipping {} samples in the ring buffer",
+                    //     //     consumer.occupied_len() - cap
+                    //     // );
+                    //     consumer.skip(consumer.occupied_len() - cap);
+                    //     // println!(
+                    //     //     "New ring buffer size: {}",
+                    //     //     consumer.occupied_len()
+                    //     // );
+                    // }
+                },
+                err_fn,
+                None,
+            )
+            .unwrap();
+
+        Ok(stream)
     }
 }
 
@@ -224,13 +257,22 @@ impl ApplicationHandler<AppEvent> for App {
                     pixels.resize_surface(size.width, size.height).unwrap();
                 }
             }
-            WindowEvent::KeyboardInput { event: KeyEvent { physical_key, state, repeat: false, .. }, .. } => {
+            WindowEvent::KeyboardInput {
+                event:
+                    KeyEvent {
+                        physical_key,
+                        state,
+                        repeat: false,
+                        ..
+                    },
+                ..
+            } => {
                 let key = if let PhysicalKey::Code(key_code) = physical_key {
                     key_code
                 } else {
                     return;
                 };
-                
+
                 let joypad_button = match key {
                     KeyCode::KeyW => JoypadButton::Up,
                     KeyCode::KeyA => JoypadButton::Left,
@@ -253,11 +295,17 @@ impl ApplicationHandler<AppEvent> for App {
 
                 // Send the joypad event to the emulator
                 if state.is_pressed() {
-                    if let Err(e) = self.joypad_sender.send(JoypadEvent::Pressed(joypad_button)) {
+                    if let Err(e) = self
+                        .joypad_sender
+                        .send(JoypadEvent::Pressed(joypad_button))
+                    {
                         eprintln!("Failed to send joypad event: {}", e);
                     }
                 } else {
-                    if let Err(e) = self.joypad_sender.send(JoypadEvent::Released(joypad_button)) {
+                    if let Err(e) = self
+                        .joypad_sender
+                        .send(JoypadEvent::Released(joypad_button))
+                    {
                         eprintln!("Failed to send joypad event: {}", e);
                     }
                 }

@@ -21,6 +21,7 @@ pub struct Emulator {
 
     in_vblank: bool,
     vsyncs: u64,
+    last_frame_time: std::time::Instant,
 
     joy_cycle_counter: isize,
     cdrom_spu_cycle_counter: isize,
@@ -59,9 +60,16 @@ pub enum JoypadEvent {
     Analog(JoypadAnalog),
 }
 
+const NTSC_FRAME_TIME : u64 = 16_666_667 ; // 60 FPS in nanoseconds
+const PAL_FRAME_TIME : u64 = 20_000_000 ; // 50 FPS in nanoseconds
+
 impl Emulator {
     /// Create a new emulator instance
-    pub fn new() -> (Self, HeapCons<SoundFrame>, crossbeam_channel::Sender<JoypadEvent>) {
+    pub fn new() -> (
+        Self,
+        HeapCons<SoundFrame>,
+        crossbeam_channel::Sender<JoypadEvent>,
+    ) {
         let cpu = Cpu::new();
         let debugger = Debugger::new();
         let breakpoint = debugger.triggered.clone();
@@ -70,7 +78,7 @@ impl Emulator {
         })
         .expect("Error setting Ctrl-C handler");
 
-        let rb = SharedRb::<Heap<SoundFrame>>::new(44100);
+        let rb = SharedRb::<Heap<SoundFrame>>::new(1000);
         let (sample_producer, sample_consumer) = rb.split();
 
         let (sender, receiver) = crossbeam_channel::unbounded::<JoypadEvent>();
@@ -84,11 +92,12 @@ impl Emulator {
                 joypad_receiver: receiver,
                 in_vblank: false,
                 vsyncs: 0,
+                last_frame_time: std::time::Instant::now(),
                 joy_cycle_counter: 50,
                 cdrom_spu_cycle_counter: 768,
             },
             sample_consumer,
-            sender
+            sender,
         )
     }
 
@@ -97,8 +106,6 @@ impl Emulator {
         event_loop_proxy: EventLoopProxy<AppEvent>,
     ) {
         loop {
-            let t0 = std::time::Instant::now();
-
             // run for approximately 1/60th of a second
             if emulator.run_until_vsync() {
                 // shutdown requested by debugger prompt
@@ -108,7 +115,7 @@ impl Emulator {
             // Get VRAM frame data (stub: all white)
             let mut frame_data: Vec<u8> = vec![0; 1024 * 512 * 4];
 
-            if true {
+            if false {
                 for y in 0..512 {
                     for x in 0..1024 {
                         let (r, g, b) =
@@ -123,10 +130,6 @@ impl Emulator {
                 }
             } else {
                 let (rx, ry) = emulator.cpu.bus.gpu.effective_resolution();
-                println!(
-                    "[Emulator] Effective resolution: {}x{}",
-                    rx, ry
-                );
                 for y in 0..ry {
                     for x in 0..rx {
                         let (r, g, b) =
@@ -149,12 +152,17 @@ impl Emulator {
                 break;
             }
 
-            let t1 = std::time::Instant::now();
-            let elapsed = t1.duration_since(t0);
-            let target_duration = std::time::Duration::from_millis(16); // ~60 FPS
-            // if elapsed < target_duration {
-            //     std::thread::sleep(target_duration - elapsed);
-            // }
+            let elapsed = emulator.last_frame_time.elapsed();
+            let target_duration = std::time::Duration::from_nanos(
+                if emulator.cpu.bus.gpu.is_pal() { PAL_FRAME_TIME } else { NTSC_FRAME_TIME }
+            );
+            if elapsed < target_duration {
+                std::thread::sleep(target_duration - elapsed);
+            }
+
+            emulator.last_frame_time = emulator.last_frame_time
+                .checked_add(target_duration)
+                .unwrap_or_else(|| std::time::Instant::now());
         }
 
         let _ = event_loop_proxy.send_event(AppEvent::EmulatorShutdown);
@@ -248,15 +256,18 @@ impl Emulator {
                 self.cpu.bus.handle_dma_write();
             } else {
                 // println!(
-                    // "[Emulator] DMA delayed for {} cycles at PC: {:#x}",
-                    // self.cpu.bus.dma.delay_cycles, self.cpu.pc
+                // "[Emulator] DMA delayed for {} cycles at PC: {:#x}",
+                // self.cpu.bus.dma.delay_cycles, self.cpu.pc
                 // );
             }
         }
 
         let intc = &mut self.cpu.bus.interrupts;
         self.cpu.bus.gpu.update(self.cycles, intc);
-        self.cpu.bus.timers.clock(self.cycles, &self.cpu.bus.gpu, intc);
+        self.cpu
+            .bus
+            .timers
+            .clock(self.cycles, &self.cpu.bus.gpu, intc);
 
         if self.in_vblank != self.cpu.bus.gpu.is_in_vblank {
             self.in_vblank = self.cpu.bus.gpu.is_in_vblank;
@@ -299,16 +310,23 @@ impl Emulator {
             self.cpu.bus.cdrom.clock(intc);
 
             // Produce a sound frame every 768 cycles (approximately 44100 Hz)
-            let sample = 0.0;
-            self.cpu.bus.spu.tick();
-            let sf = crate::app::SoundFrame(sample, sample);
+            let (left, right) = self.cpu.bus.spu.tick();
+            let sf = crate::app::SoundFrame(left, right);
 
             // while self.sample_producer.is_full() {
             //     // wait for the consumer to catch up
             // }
 
-            if self.sample_producer.try_push(sf).is_err() {
-                // eprintln!("Sound buffer is full, dropping samples");
+            match self.sample_producer.try_push(sf) {
+                Ok(_) => {
+                    // Successfully pushed a sound frame
+                    // println!("Sound frame produced {:?}", sf);
+                }
+                Err(_) => {
+                    // The producer is full, we might want to handle this case
+                    // (e.g., log a warning or drop the frame)
+                    // println!("Sound buffer is full, dropping frame");
+                }
             }
         }
 

@@ -9,7 +9,7 @@ impl Cpu {
                     super::MemoryError::AlignmentError,
                     super::AccessType::InstructionFetch,
                     address,
-                    address
+                    address,
                 );
             } else {
                 self.npc = address;

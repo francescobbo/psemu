@@ -99,7 +99,12 @@ impl Cpu {
                 self.gte.write(instruction.rt(), value).unwrap();
             }
             Err(e) => {
-                self.memory_access_exception(e, AccessType::Read, address, self.current_pc);
+                self.memory_access_exception(
+                    e,
+                    AccessType::Read,
+                    address,
+                    self.current_pc,
+                );
             }
         };
     }
@@ -111,7 +116,12 @@ impl Cpu {
         match self.write_memory(address, value, AccessSize::Word) {
             Ok(_) => {}
             Err(e) => {
-                self.memory_access_exception(e, AccessType::Write, address, self.current_pc);
+                self.memory_access_exception(
+                    e,
+                    AccessType::Write,
+                    address,
+                    self.current_pc,
+                );
             }
         }
     }

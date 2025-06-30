@@ -358,9 +358,8 @@ impl Bus {
                                     let mut addr = addr & !3; // Align to 4 bytes
                                     addr &= 0x1f_fffc; // Truncate to 21 bits
 
-                                    let header = self
-                                        .ram
-                                        .read(addr, AccessSize::Word);
+                                    let header =
+                                        self.ram.read(addr, AccessSize::Word);
                                     let word_count = header >> 24;
 
                                     for _ in 0..word_count {
@@ -375,7 +374,8 @@ impl Bus {
                                     // println!("[DMA2] NEXT GPU DMA @ {:08x}", addr);
                                     active_channel.set_base(addr);
 
-                                    self.dma.delay_cycles = 128 + word_count as i32;
+                                    self.dma.delay_cycles =
+                                        128 + word_count as i32;
                                     self.dma.pending = true;
                                 }
                                 Direction::ToRam => {
@@ -403,7 +403,11 @@ impl Bus {
                                 }
                                 Direction::ToRam => {
                                     let value = self.gpu.read(0x1f80_1810);
-                                    self.ram.write(addr, value, AccessSize::Word);
+                                    self.ram.write(
+                                        addr,
+                                        value,
+                                        AccessSize::Word,
+                                    );
                                     addr = addr.wrapping_add(step as u32);
                                 }
                             }

@@ -1,5 +1,9 @@
 use std::{
-    cmp::Ordering, hash::DefaultHasher, ops::{Add, AddAssign, Sub, SubAssign}, str::FromStr, vec
+    cmp::Ordering,
+    hash::DefaultHasher,
+    ops::{Add, AddAssign, Sub, SubAssign},
+    str::FromStr,
+    vec,
 };
 
 use crate::{bus::AccessSize, interrupts::InterruptController};
@@ -19,6 +23,7 @@ pub struct Cdrom {
     response_write_index: usize,
     parameters: [u8; 16],
     parameter_index: usize,
+    audio_muted: bool,
     has_response: bool,
     int_mask: u8,
     int_status: u8,
@@ -47,6 +52,7 @@ impl Cdrom {
             response_write_index: 0, // Initialize write index
             parameters: [0; 16],     // Initialize parameters buffer
             parameter_index: 0,      // Initialize parameter index
+            audio_muted: false,      // Audio is not muted initially
             has_response: false,     // Initially no response
             int_mask: 0,             // Default interrupt mask
             int_status: 0,           // Default interrupt status
@@ -59,7 +65,7 @@ impl Cdrom {
             cue: None,  // Initialize the CUE sheet
             data_fifo: DataFifo::new(), // Initialize the data FIFO
             drive_mode: 0,
-            adpcm_file: 0, // Default to file 0 for ADPCM
+            adpcm_file: 0,    // Default to file 0 for ADPCM
             adpcm_channel: 0, // Default to channel 0 for ADPCM
 
             raw_sectors: false, // Default to not using raw sectors
@@ -385,7 +391,7 @@ impl Cdrom {
         self.command_state = match self.command_state {
             CommandState::Idle => CommandState::Idle,
             CommandState::CommandQueued { command, cycles } => {
-                if (self.int_status & 7) != 0 {
+                if (self.int_status & 7) == 0 {
                     CommandState::ReceivingCommand {
                         command,
                         cycles_remaining: cycles,
@@ -463,6 +469,16 @@ impl Cdrom {
                 CommandState::Idle
             }
             Command::Demute => {
+                self.audio_muted = false;
+
+                self.write_result(vec![self.stat()]);
+                self.emit_int3();
+
+                CommandState::Idle
+            }
+            Command::Mute => {
+                self.audio_muted = true;
+
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
 
@@ -491,8 +507,6 @@ impl Cdrom {
                 self.write_result(vec![self.stat()]);
                 self.emit_int3();
 
-
-
                 self.parameter_index = 0;
 
                 CommandState::Idle
@@ -511,7 +525,8 @@ impl Cdrom {
             }
             Command::SetLoc => self.execute_set_loc(),
             Command::Init => {
-                // self.drive_mode = DriveMode::from(0x20);
+                self.drive_mode = 0x20;
+                self.raw_sectors = true;
 
                 if !matches!(
                     self.drive_state,
@@ -571,7 +586,11 @@ impl Cdrom {
             }
             Command::GetLocP => {
                 let absolute_time = self.drive_state.current_time();
-                let track = self.cue.as_ref().unwrap().find_track_by_time(absolute_time);
+                let track = self
+                    .cue
+                    .as_ref()
+                    .unwrap()
+                    .find_track_by_time(absolute_time);
 
                 let (track_number, index, relative_time) =
                     track.map_or((0xAA, 0x00, CdTime::ZERO), |track| {
@@ -695,13 +714,12 @@ impl Cdrom {
             _ => todo!("Command byte {command_byte:02X}"),
         };
 
-        self.command_state = //if (self.int_status & 7) != 0 {
-        //     println!("[CDROM] Command {command:?} queued, interrupts pending");
-
-        //     CommandState::CommandQueued { command, cycles }
-        // } else {
+        self.command_state = if (self.int_status & 7) != 0 {
+            println!("[CDROM] Command {command:?} queued, interrupts pending");
+            CommandState::CommandQueued { command, cycles }
+        } else {
             CommandState::ReceivingCommand { command, cycles_remaining: cycles }
-        //};
+        };
     }
 
     fn stat(&self) -> u8 {
@@ -745,7 +763,9 @@ impl Cdrom {
             }
             None => {
                 // "No disc" response
-                self.write_result(vec![0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]);
+                self.write_result(vec![
+                    0x08, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                ]);
                 self.emit_int5();
             }
         }
@@ -845,7 +865,8 @@ impl Cdrom {
     }
 
     fn read_sector_atime(&mut self, time: CdTime) {
-        let Some(track) = self.cue.as_ref().unwrap().find_track_by_time(time) else {
+        let Some(track) = self.cue.as_ref().unwrap().find_track_by_time(time)
+        else {
             // TODO INT4+pause at disc end
             todo!("Read to end of disc");
         };

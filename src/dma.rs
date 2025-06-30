@@ -200,7 +200,7 @@ impl Dma {
 
     pub fn active_channel(&mut self) -> Option<&mut Channel> {
         let channels_by_priority = self.channels_by_priority();
-        
+
         for pi in 0..channels_by_priority.len() {
             let i = channels_by_priority[pi];
             let link = self.channels[i].link(); // immutable borrow for enabled()
@@ -231,9 +231,7 @@ impl Dma {
 
         // Sort by score ascending, then by channel descending
         scored.sort_by(|&(ch_a, score_a), &(ch_b, score_b)| {
-            score_a
-                .cmp(&score_b)
-                .then_with(|| ch_b.cmp(&ch_a))
+            score_a.cmp(&score_b).then_with(|| ch_b.cmp(&ch_a))
         });
 
         // Strip off the scores, returning just the channel numbers

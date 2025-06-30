@@ -1,21 +1,24 @@
-use std::os::raw::c_void;
+mod gauss;
+mod voice;
 
-use crate::{bus::AccessSize, ram};
+use crate::{bus::AccessSize, spu::voice::{AdsrEnvelope, AdsrPhase}};
 
 #[derive(Default, Copy, Clone, Debug)]
 struct Voice {
+    n: usize,
+
+    envelope: AdsrEnvelope, // ADSR envelope for this voice
+
     sample_rate: u16,
     start_address: u32,
     repeat_address: u32,
 
     current_address_internal: u32,
 
-    key_on: bool,
-
-    decode_buffer: [i16; 28], // Buffer for decoded ADPCM samples
+    decode_buffer: [i16; 32], // Buffer for decoded ADPCM samples
 
     pitch_counter: u16,     // Pitch counter for this voice
-    current_buffer_idx: u8, // Current index in the decode buffer
+    current_buffer_idx: usize, // Current index in the decode buffer
     current_sample: i16,    // Current sample being played
 
     volume_left: u16,  // Volume for left channel
@@ -51,7 +54,9 @@ impl Spu {
             data_start_address: 0,              // Default data start address
             data_start_address_internal: 0,     // Internal data start address
             ram: vec![0; 512 * 1024], // Initialize sound RAM with 512 KiB of zeroes
-            voices: vec![Voice::default(); 24], // Initialize 24 voices
+            voices: (0..24)
+                .map(|n| Voice::new(n)) // Create 24 voices
+                .collect(),
             spucnt: 0,                // SPUCNT register, default value
             key_on_register: 0,       // Key ON register, default value
             key_off_register: 0,      // Key OFF register, default value
@@ -60,27 +65,35 @@ impl Spu {
         }
     }
 
-    pub fn tick(&mut self) -> f32 {
+    pub fn tick(&mut self) -> (f32, f32) {
         // Process each voice
         for voice in &mut self.voices {
-            if voice.key_on {
-                // Clock the voice to update its sample
-                voice.clock(&self.ram);
-            }
+            // Clock the voice to update its sample
+            voice.clock(&self.ram);
         }
 
-        let mut mixed_sample = 0i32;
+        let mut mixed_sample_left = 0i32;
+        let mut mixed_sample_right = 0i32;
+
         for voice in &self.voices {
-            if voice.key_on {
-                // Mix the current sample from the voice
-                mixed_sample += i32::from(voice.current_sample);
-            }
+            let sample = voice.get_sample();
+
+            // Mix the current sample from the voice
+            mixed_sample_left += i32::from(sample.0);
+            mixed_sample_right += i32::from(sample.1);
         }
+
+        // Clamp the sums to signed 16-bit
+        let clamped_l = mixed_sample_left.clamp(-0x8000, 0x7FFF) as i16;
+        let clamped_r = mixed_sample_right.clamp(-0x8000, 0x7FFF) as i16;
+
+        // Apply main volume after mixing
+        let output_l = apply_volume(clamped_l, self.volume_left as i16);
+        let output_r = apply_volume(clamped_r, self.volume_right as i16);
 
         // Convert to f32
-        let output_sample = mixed_sample.clamp(-0x8000, 0x7FFF) as i16;
-        let output_sample = output_sample as f32 / (0x8000 as f32);
-        output_sample
+        (output_l as f32 / 32768.0,
+         output_r as f32 / 32768.0)
     }
 
     pub fn read(&self, address: u32, size: AccessSize) -> u32 {
@@ -106,19 +119,21 @@ impl Spu {
                         self.voices[voice_index as usize].start_address >> 3
                     }
                     8 => {
-                        // ADSR register (not implemented)
-                        // println!("Reading ADSR register is not implemented");
-                        0
+                        self.voices[voice_index as usize]
+                            .envelope
+                            .read_low() as u32 // Read ADSR register
                     }
                     0xa => {
-                        // ADSR2 (not implemented)
-                        // println!("Reading ADSR2 register is not implemented");
-                        0
+                        self.voices[voice_index as usize]
+                            .envelope
+                            .read_high() as u32 // Read ADSR2 register
                     }
                     0xc => {
                         // ADS current volume
                         // println!("Reading current address is not implemented");
-                        0
+                        self.voices[voice_index as usize]
+                            .envelope
+                            .level as u32
                     }
                     0xe => {
                         // Repeat address
@@ -220,14 +235,17 @@ impl Spu {
                         // );
                     }
                     8 => {
-                        // ADSR register
+                        self.voices[voice_index as usize]
+                            .envelope
+                            .write_low(value as u16);
                     }
                     0xa => {
-                        // ADSR2
+                        self.voices[voice_index as usize]
+                            .envelope
+                            .write_high(value as u16);
                     }
                     0xc => {
                         // ADS current volume
-                        // This register is not implemented in this example.
                     }
                     0xe => {
                         self.voices[voice_index as usize].repeat_address =
@@ -297,7 +315,7 @@ impl Spu {
 
                 for i in 0..16 {
                     if (value & (1 << i)) != 0 {
-                        self.voices[i].key_on = false;
+                        self.voices[i].key_off();
                     }
                 }
 
@@ -311,7 +329,7 @@ impl Spu {
 
                 for i in 0..8 {
                     if (value & (1 << i)) != 0 {
-                        self.voices[16 + i].key_on = false;
+                        self.voices[16 + i].key_off();
                     }
                 }
 
@@ -461,9 +479,7 @@ impl Spu {
 
     fn decode_adpcm_block(
         block: &[u8],
-        decoded: &mut [i16; 28],
-        mut old_sample: i16,
-        mut older_sample: i16,
+        decoded: &mut [i16; 32],
     ) {
         // First byte is a header byte specifying the shift value (bits 0-3) and the filter value (bits 4-6).
         // A shift value of 13-15 is invalid and behaves the same as shift=9
@@ -473,14 +489,16 @@ impl Spu {
         // Filter values can only range from 0 to 4
         let filter = std::cmp::min(4, (block[0] >> 4) & 0x07);
 
-        // The second byte is another header byte specifying loop flags; ignore that for now
+        for i in 0..4 {
+            decoded[i] = decoded[28 + i];
+        }
 
         // The remaining 14 bytes are encoded sample values
         for sample_idx in 0..28 {
             // Read the raw 4-bit sample value from the block.
             // Samples are stored little-endian within a byte
             let sample_byte = block[2 + sample_idx / 2];
-            let sample_nibble = (sample_byte >> (4 * (sample_idx % 2))) & 0x0F;
+            let sample_nibble = (sample_byte >> (4 * (sample_idx % 2))) & 0x0f;
 
             // Sign extend from 4 bits to 32 bits
             let raw_sample: i32 = (((sample_nibble as i8) << 4) >> 4).into();
@@ -488,10 +506,11 @@ impl Spu {
             // Apply the shift; a shift value of N is decoded by shifting left (12 - N)
             let shifted_sample = raw_sample << (12 - shift);
 
+            let old: i32 = decoded[sample_idx + 3].into();
+            let older: i32 = decoded[sample_idx + 2].into();
+
             // Apply the filter formula.
             // In real code you can do this with tables instead of a match
-            let old = i32::from(old_sample);
-            let older = i32::from(older_sample);
             let filtered_sample = match filter {
                 // 0: No filtering
                 0 => shifted_sample,
@@ -506,33 +525,51 @@ impl Spu {
 
             // Finally, clamp to signed 16-bit
             let clamped_sample = filtered_sample.clamp(-0x8000, 0x7FFF) as i16;
-            decoded[sample_idx] = clamped_sample;
-
-            // Update sliding window for filter
-            older_sample = old_sample;
-            old_sample = clamped_sample;
+            decoded[sample_idx + 4] = clamped_sample;
         }
     }
 }
 
 impl Voice {
+    fn new(n: usize) -> Self {
+        Voice {
+            n,
+            ..Default::default() // Initialize all fields to default values
+        }
+    }
+
     fn key_on(&mut self, ram: &[u8]) {
-        self.key_on = true;
+        if self.n == 0 {
+            println!(
+                "[SPU] Key ON for voice {} at address {:#x}",
+                self.n, self.start_address
+            );
+        }
 
         self.current_address_internal = self.start_address;
         self.pitch_counter = 0;
         self.current_buffer_idx = 0;
         self.decode_next_block(ram);
+
+        self.envelope.key_on();
+    }
+
+    fn key_off(&mut self) {
+        self.envelope.key_off();
     }
 
     fn decode_next_block(&mut self, sound_ram: &[u8]) {
         let block = &sound_ram[self.current_address_internal as usize
             ..(self.current_address_internal + 16) as usize];
 
-        let old = self.decode_buffer[27]; // old_sample
-        let older = self.decode_buffer[26]; // older_sample
+        Spu::decode_adpcm_block(block, &mut self.decode_buffer);
 
-        Spu::decode_adpcm_block(block, &mut self.decode_buffer, old, older);
+        // if self.n == 0 {
+        //     println!(
+        //         "[SPU] Decoding next block at address {:#x}. Data: {:?}, Res: {:?}",
+        //         self.current_address_internal, block, self.decode_buffer
+        //     );
+        // }
 
         let loop_end = block[1] & 1 != 0;
         let loop_repeat = block[1] & (1 << 1) != 0;
@@ -559,13 +596,13 @@ impl Voice {
 
             if !loop_repeat {
                 // End of non-repeating loop, immediately mute the voice
-                self.volume_left = 0;
-                self.volume_right = 0;
-                self.key_on = false;
+                self.envelope.level = 0;
+                self.envelope.phase = AdsrPhase::Release;
             }
         } else {
             // Not end of loop, move to the next 16-byte block
             self.current_address_internal += 16;
+            self.current_address_internal &= 0x7FFFF; // Wrap around at 512 KiB
         }
     }
 
@@ -575,6 +612,13 @@ impl Voice {
         let pitch_counter_step = std::cmp::min(0x4000, self.sample_rate);
         // In a full implementation, pitch modulation would be applied right here
         self.pitch_counter += pitch_counter_step;
+
+        self.envelope.clock();
+
+        // println!(
+        //     "[SPU] Clocking voice: pitch_counter: {:#x}",
+        //     pitch_counter_step,
+        // );
 
         // Step through samples while pitch counter bits 12-15 are non-zero
         while self.pitch_counter >= 0x1000 {
@@ -588,9 +632,48 @@ impl Voice {
             }
         }
 
+        let sample = gauss::gaussian(self.last4_samples(), self.pitch_counter);
+        
+        // if self.n == 0 {
+        //     println!("Gaussian sample: {:#06X}. Last4: {:?}, pc: {:#06X}",
+        //                 sample, self.last4_samples(), self.pitch_counter);
+        // }
+
         // Update current sample.
         // In a full implementation, this is where sample interpolation and voice volume would be applied
-        self.current_sample =
-            self.decode_buffer[self.current_buffer_idx as usize];
+        self.current_sample = sample;
     }
+
+    fn get_sample(&self) -> (i16, i16) {
+        let envelope_sample = apply_volume(self.current_sample, self.envelope.level);
+
+        if self.volume_left & 0x8000 != 0 {
+            panic!("Volume sweep left!")
+        } else if self.volume_right & 0x8000 != 0 {
+            panic!("Volume sweep right!")
+        }
+
+        let actual_volume_left = (self.volume_left << 1) as i16;
+        let actual_volume_right = (self.volume_right << 1) as i16;
+
+        let output_l = apply_volume(envelope_sample, actual_volume_left);
+        let output_r = apply_volume(envelope_sample, actual_volume_right);
+
+        // if self.n == 0 {
+        //     println!("V0: raw_sample={:#06X} pitch_counter={:#06X} sample_rate={:#06X} adrs={:#06X} vl={:#06X} vr={:#06X} sample_l={:#06X} sample_r={:#06X}",
+        //              self.current_sample, self.pitch_counter, self.sample_rate, self.envelope.level, actual_volume_left, actual_volume_right, output_l, output_r);
+        // }
+
+        (output_l, output_r)
+    }
+
+    fn last4_samples(&self) -> [i16; 4] {
+        self.decode_buffer[self.current_buffer_idx..= self.current_buffer_idx + 3]
+            .try_into()
+            .expect("Decode buffer should always have at least 4 samples")
+    }
+}
+
+fn apply_volume(sample: i16, volume: i16) -> i16 {
+    ((sample as i32 * volume as i32) >> 15) as i16
 }

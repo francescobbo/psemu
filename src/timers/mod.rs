@@ -35,7 +35,12 @@ impl Timers {
         Timers::default()
     }
 
-    pub fn clock(&mut self, cpu_cycles: usize, gpu: &Gpu, intc: &mut InterruptController) {
+    pub fn clock(
+        &mut self,
+        cpu_cycles: usize,
+        gpu: &Gpu,
+        intc: &mut InterruptController,
+    ) {
         let started_hblank = gpu.is_in_hblank && !self.in_hblank;
         let started_vblank = gpu.is_in_vblank && !self.in_vblank;
 
@@ -63,7 +68,7 @@ impl Timers {
         cpu_cycles: usize,
         dotclock_cycles: f64,
         started_hblank: bool,
-        intc: &mut InterruptController
+        intc: &mut InterruptController,
     ) {
         let timer = &mut self.timers[0];
         if timer.is_synchronized {
@@ -128,7 +133,7 @@ impl Timers {
         cpu_cycles: usize,
         started_hblank: bool,
         started_vblank: bool,
-        intc: &mut InterruptController
+        intc: &mut InterruptController,
     ) {
         let timer = &mut self.timers[1];
         if timer.is_synchronized {
@@ -187,7 +192,11 @@ impl Timers {
         }
     }
 
-    pub fn run_t2(&mut self, cpu_cycles: usize, intc: &mut InterruptController) {
+    pub fn run_t2(
+        &mut self,
+        cpu_cycles: usize,
+        intc: &mut InterruptController,
+    ) {
         let timer = &mut self.timers[2];
         if timer.is_synchronized {
             match timer.sync_mode {

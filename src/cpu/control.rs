@@ -142,7 +142,7 @@ impl Cop0 {
         npc: u32,
         in_bds: bool,
         branch_taken: bool,
-        coprocessor_number: u32
+        coprocessor_number: u32,
     ) -> u32 {
         // Copy the low 4 bits into bits 6-4 of the Status Register
         self.status.set_low_fields(self.status.low_fields() << 2);
