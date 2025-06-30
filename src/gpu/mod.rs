@@ -966,7 +966,7 @@ impl Gpu {
                                 // That bit is ignored if the command is "opaque" (semi_transparent is false).
                                 // Otherwise the black is blended with the VRAM color.
 
-                                if !tex_color.transparent {
+                                if tex_color.transparent == 0 {
                                     continue;
                                 }
 
@@ -1131,6 +1131,17 @@ impl Gpu {
                 let w1 = Self::edge_fn(v3.vertex, v1.vertex, Vertex::new(x, y));
                 let w2 = Self::edge_fn(v1.vertex, v2.vertex, Vertex::new(x, y));
 
+                let x = ((x as isize + self.x_offset) & 0x3ff) as usize; // Wrap around at 1024
+                let y = ((y as isize + self.y_offset) & 0x1ff) as usize; // Wrap around at 512
+
+                if x < self.min_x
+                    || x > self.max_x
+                    || y < self.min_y
+                    || y > self.max_y
+                {
+                    continue; // Skip pixels outside the clipping rectangle
+                }
+
                 if w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 {
                     let alpha = w0 / area;
                     let beta = w1 / area;
@@ -1139,17 +1150,6 @@ impl Gpu {
                     let color = Color::lerp3(
                         v1.color, v2.color, v3.color, alpha, beta, gamma,
                     );
-
-                    let x = ((x as isize + self.x_offset) & 0x3ff) as usize; // Wrap around at 1024
-                    let y = ((y as isize + self.y_offset) & 0x1ff) as usize; // Wrap around at 512
-
-                    if x < self.min_x
-                        || x > self.max_x
-                        || y < self.min_y
-                        || y > self.max_y
-                    {
-                        continue; // Skip pixels outside the clipping rectangle
-                    }
 
                     let color = if self.enable_dithering && !force_dither_off {
                         self.dither(x, y, color)
@@ -1259,7 +1259,7 @@ impl Gpu {
                         // That bit is ignored if the command is "opaque" (semi_transparent is false).
                         // Otherwise the black is blended with the VRAM color.
 
-                        if !tex_color.transparent {
+                        if tex_color.transparent == 0 {
                             continue;
                         }
 
@@ -1518,11 +1518,11 @@ struct Color {
     r: u8,
     g: u8,
     b: u8,
-    transparent: bool,
+    transparent: u16,
 }
 
 impl Color {
-    fn new(r: u8, g: u8, b: u8, t: bool) -> Self {
+    fn new(r: u8, g: u8, b: u8, t: u16) -> Self {
         Self {
             r,
             g,
@@ -1539,7 +1539,7 @@ impl Color {
         let r = (color & 0x1f) as u16; // 5 bits for red
         let g = ((color >> 5) & 0x1f) as u16; // 5 bits for green
         let b = ((color >> 10) & 0x1f) as u16; // 5 bits for blue
-        let t = (color & 0x8000) != 0; // Check if the color is semi-transparent
+        let t = color & 0x8000; // Check if the color is semi-transparent
 
         Self {
             r: (r as f32 / 31.0 * 255.0) as u8,
@@ -1565,7 +1565,7 @@ impl Color {
             r: r.clamp(0.0, 255.0) as u8,
             g: g.clamp(0.0, 255.0) as u8,
             b: b.clamp(0.0, 255.0) as u8,
-            transparent: c0.transparent || c1.transparent || c2.transparent,
+            transparent: c0.transparent | c1.transparent | c2.transparent,
         }
     }
 
@@ -1574,16 +1574,16 @@ impl Color {
         let g = ((rgb >> 8) & 0xff) as u8;
         let b = ((rgb >> 16) & 0xff) as u8;
 
-        Self::new(r, g, b, false)
+        Self::new(r, g, b, 0)
     }
 
+    #[inline(always)]
     fn to_bgr555(&self) -> u16 {
-        let r = (self.r >> 3) & 0x1f; // 5 bits for red
-        let g = (self.g >> 3) & 0x1f; // 5 bits for green
-        let b = (self.b >> 3) & 0x1f; // 5 bits for blue
-        let t = if self.transparent { 0x8000 } else { 0 };
+        let r = self.r >> 3; // 5 bits for red
+        let g = self.g >> 3; // 5 bits for green
+        let b = self.b >> 3; // 5 bits for blue
 
-        (r as u16) | ((g as u16) << 5) | ((b as u16) << 10) | t
+        (r as u16) | ((g as u16) << 5) | ((b as u16) << 10) | self.transparent
     }
 
     fn as_modulation(&self) -> (f32, f32, f32) {
@@ -1608,7 +1608,7 @@ impl Color {
         let g = ((self.g as f64 * other.g as f64) as u16 >> 8) as u8;
         let b = ((self.b as f64 * other.b as f64) as u16 >> 8) as u8;
 
-        Color::new(r, g, b, self.transparent || other.transparent)
+        Color::new(r, g, b, self.transparent | other.transparent)
     }
 }
 
