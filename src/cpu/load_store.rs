@@ -9,7 +9,7 @@ impl Cpu {
         }
 
         self.cancel_delayed_load(target);
-        self.load_delay = Some(DelayedLoad {
+        self.scheduled_load = Some(DelayedLoad {
             target,
             value,
             coprocessor: None,
@@ -22,7 +22,7 @@ impl Cpu {
         target: usize,
         value: u32,
     ) {
-        self.load_delay = Some(DelayedLoad {
+        self.scheduled_load = Some(DelayedLoad {
             target,
             value,
             coprocessor: Some(coprocessor),
@@ -30,13 +30,13 @@ impl Cpu {
     }
 
     pub fn cancel_delayed_load(&mut self, register_index: usize) {
-        match self.current_load_delay {
+        match self.active_load_delay {
             Some(DelayedLoad {
                 target,
                 coprocessor: None,
                 ..
             }) if target == register_index => {
-                self.current_load_delay = None; // Clear the current load delay
+                self.active_load_delay = None; // Clear the current load delay
             }
             _ => {}
         }
@@ -57,11 +57,7 @@ impl Cpu {
                 self.delayed_load(instr.rt(), value);
             }
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    address,
-                );
+                self.memory_access_exception(err, AccessType::Read, address);
             }
         }
     }
@@ -81,11 +77,7 @@ impl Cpu {
                 self.delayed_load(instr.rt(), value);
             }
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    address,
-                );
+                self.memory_access_exception(err, AccessType::Read, address);
             }
         }
     }
@@ -103,11 +95,7 @@ impl Cpu {
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
             Ok(value) => value,
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    addr,
-                );
+                self.memory_access_exception(err, AccessType::Read, addr);
                 return;
             }
         };
@@ -142,11 +130,7 @@ impl Cpu {
         match self.read_memory(address, AccessSize::Word) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    address,
-                );
+                self.memory_access_exception(err, AccessType::Read, address);
             }
         }
     }
@@ -162,11 +146,7 @@ impl Cpu {
         match self.read_memory(address, AccessSize::Byte) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    address,
-                );
+                self.memory_access_exception(err, AccessType::Read, address);
             }
         }
     }
@@ -182,11 +162,7 @@ impl Cpu {
         match self.read_memory(address, AccessSize::HalfWord) {
             Ok(value) => self.delayed_load(instr.rt(), value),
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    address,
-                );
+                self.memory_access_exception(err, AccessType::Read, address);
             }
         }
     }
@@ -204,11 +180,7 @@ impl Cpu {
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
             Ok(value) => value,
             Err(err) => {
-                self.memory_access_exception(
-                    err,
-                    AccessType::Read,
-                    addr,
-                );
+                self.memory_access_exception(err, AccessType::Read, addr);
                 return;
             }
         };
@@ -234,11 +206,7 @@ impl Cpu {
         let value = self.get_rt(instr);
 
         if let Err(err) = self.write_memory(address, value, AccessSize::Byte) {
-            self.memory_access_exception(
-                err,
-                AccessType::Write,
-                address,
-            );
+            self.memory_access_exception(err, AccessType::Write, address);
         }
     }
 
@@ -252,11 +220,7 @@ impl Cpu {
         if let Err(err) =
             self.write_memory(address, value, AccessSize::HalfWord)
         {
-            self.memory_access_exception(
-                err,
-                AccessType::Write,
-                address,
-            );
+            self.memory_access_exception(err, AccessType::Write, address);
         }
     }
 
@@ -289,11 +253,7 @@ impl Cpu {
         // Write the modified value back to memory, aligned to a word boundary
         if let Err(err) = self.write_memory(addr & !3, value, AccessSize::Word)
         {
-            self.memory_access_exception(
-                err,
-                AccessType::Write,
-                addr & !3,
-            );
+            self.memory_access_exception(err, AccessType::Write, addr & !3);
         }
     }
 
@@ -305,11 +265,7 @@ impl Cpu {
         let value = self.get_rt(instr);
 
         if let Err(err) = self.write_memory(address, value, AccessSize::Word) {
-            self.memory_access_exception(
-                err,
-                AccessType::Write,
-                address,
-            );
+            self.memory_access_exception(err, AccessType::Write, address);
         }
     }
 
@@ -340,11 +296,7 @@ impl Cpu {
         // Write the modified value back to memory, aligned to a word boundary
         if let Err(err) = self.write_memory(addr & !3, value, AccessSize::Word)
         {
-            self.memory_access_exception(
-                err,
-                AccessType::Write,
-                addr & !3,
-            );
+            self.memory_access_exception(err, AccessType::Write, addr & !3);
         }
     }
 
@@ -353,7 +305,7 @@ impl Cpu {
             target,
             value,
             coprocessor: None,
-        }) = self.current_load_delay
+        }) = self.active_load_delay
         {
             if target == index {
                 return value;
@@ -471,8 +423,8 @@ mod tests {
         // - pending_load should be Some((8, value_in_memory)).
         cpu.step();
         assert_eq!(cpu.registers[8], initial_t0_val);
-        assert!(cpu.load_delay.is_some());
-        if let Some(load) = &cpu.load_delay {
+        assert!(cpu.scheduled_load.is_some());
+        if let Some(load) = &cpu.scheduled_load {
             assert_eq!(load.target, 8);
             assert_eq!(load.value, value_in_memory);
         }
@@ -487,7 +439,7 @@ mod tests {
 
         // r8 ($t0) has now been updated to value_in_memory
         assert_eq!(cpu.registers[8], value_in_memory);
-        assert!(cpu.load_delay.is_none());
+        assert!(cpu.scheduled_load.is_none());
 
         // Execute ADDU $t2, $t0, $0 (Instruction L+2, after Delay Slot)
         cpu.step();
@@ -520,7 +472,7 @@ mod tests {
 
         cpu.step();
         assert_eq!(cpu.registers[0], 0);
-        assert!(cpu.load_delay.is_none());
+        assert!(cpu.scheduled_load.is_none());
 
         cpu.step();
         assert_eq!(cpu.registers[0], 0);

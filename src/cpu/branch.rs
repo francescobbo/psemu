@@ -1,8 +1,7 @@
-use crate::cpu::{Cpu, Instruction};
+use crate::cpu::{BranchState, Cpu, Instruction};
 
 impl Cpu {
     fn schedule_branch(&mut self, target: Option<u32>, relative: bool) {
-        self.next_is_bds = true;
         if let Some(address) = target {
             let address = if relative {
                 self.pc.wrapping_add(address)
@@ -11,9 +10,9 @@ impl Cpu {
             };
 
             self.npc = address;
-            self.branch_taken = true;
+            self.next_branch_state = BranchState::InDelaySlot(true);
         } else {
-            self.branch_taken = false;
+            self.next_branch_state = BranchState::InDelaySlot(false);
         }
     }
 

@@ -82,6 +82,12 @@ const IO_STUBS: &[(u32, u32, &str)] = &[
     (0x1fa00000, 0x1fbfffff, "Exp3"),
 ];
 
+impl Default for Bus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Bus {
     /// Creates a new system bus.
     pub fn new() -> Self {

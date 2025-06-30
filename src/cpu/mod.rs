@@ -18,7 +18,18 @@ pub use memory::{AccessType, MemoryError};
 
 const NUM_REGISTERS: usize = 32;
 
+#[derive(Default)]
 pub struct Cpu {
+    /// The Program Counter: holds the address of the instruction to be fetched next.
+    pub pc: u32,
+
+    /// Next PC: on a taken branch, holds the target address, otherwise, it's `pc + 4`.
+    pub npc: u32,
+
+    /// The address of the instruction currently being executed. Used only to
+    /// set the EPC register when an exception occurs.
+    pub current_instruction_pc: u32,
+
     /// The CPU's general-purpose registers.
     pub registers: [u32; NUM_REGISTERS],
 
@@ -28,34 +39,25 @@ pub struct Cpu {
     /// The LO register
     pub lo: u32,
 
-    /// The Program Counter, which contains the address of the next instruction
-    /// that will be fetched and executed.
-    pub pc: u32,
+    /// The branch state for the instruction to be executed in the next cycle.
+    pub next_branch_state: BranchState,
 
-    // The Next Program Counter, which contains the value that PC will
-    // be set to.
-    pub npc: u32,
+    /// The branch state for the instruction executing in the current cycle.
+    pub current_branch_state: BranchState,
 
-    // The PC at which the current instruction was just fetched.
-    pub current_instruction_pc: u32,
+    /// A load instruction has just executed and scheduled this operation.
+    /// It will become `active_load_delay` in the next cycle.
+    pub scheduled_load: Option<DelayedLoad>,
 
-    pub next_is_bds: bool,
-    pub current_is_bds: bool,
-    pub branch_taken: bool,
+    /// This is a load from the previous cycle. It's now active in the
+    /// delay slot and will be committed at the end of the current cycle.
+    pub active_load_delay: Option<DelayedLoad>,
+
+    /// Number of cycles consumed by the current step.
+    pub step_cycles: usize,
 
     /// I/O bus that connects the CPU to the rest of the system.
     pub bus: Bus,
-
-    /// The load delay slot: a load operation that is not completed in the same
-    /// cycle as the instruction that performed it.
-    pub load_delay: Option<DelayedLoad>,
-
-    /// The delayed load operation that is currently in progress, and will be
-    /// persisted at the end of the current cycle.
-    pub current_load_delay: Option<DelayedLoad>,
-
-    /// The BIU/Cache Control Register
-    pub biu_cache_control: u32,
 
     /// The COP0 coprocessor, which handles system control operations.
     pub cop0: control::Cop0,
@@ -63,12 +65,18 @@ pub struct Cpu {
     // The COP2 coprocessor (the GTE), which handles graphics transformations.
     pub gte: gte::Gte,
 
+    /// The BIU/Cache Control Register
+    pub biu_cache_control: u32,
+
+    /// Used by the debugger to trigger memory access breakpoints.
     pub last_memory_operation: (AccessType, u32),
 
+    /// Used exclusively to determine the Coprocessor number for the
+    /// CoprocessorUnavailable exception. That field in the CAUSE register
+    /// is set to the low 2 bits of the opcode, whether the instruction
+    /// is a coprocessor instruction or not. And whether the exception
+    /// is CoprocessorUnavailable or not. What a wasteland.
     pub current_instruction: u32,
-
-    /// Number of cycles consumed by this step
-    pub step_cycles: usize,
 }
 
 /// Represents a delayed load operation.
@@ -84,54 +92,50 @@ pub struct DelayedLoad {
     pub coprocessor: Option<u8>,
 }
 
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub enum BranchState {
+    #[default]
+    /// The instruction is not in a branch delay slot.
+    NotInDelaySlot,
+    /// The instruction is in a branch delay slot. The branch may or may not
+    /// be taken.
+    InDelaySlot(bool),
+}
+
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
-            registers: [0; NUM_REGISTERS],
-            hi: 0,
-            lo: 0,
             pc: 0xbfc0_0000,
             npc: 0xbfc0_0004,
-            current_instruction_pc: 0,
-            next_is_bds: false,
-            current_is_bds: false,
-            branch_taken: false,
-            bus: Bus::new(),
-            load_delay: None,
-            current_load_delay: None,
-            biu_cache_control: 0,
-            cop0: control::Cop0::new(),
-            gte: gte::Gte::new(),
-            last_memory_operation: (AccessType::InstructionFetch, 0),
-            current_instruction: 0,
-            step_cycles: 0,
+            ..Default::default()
         }
     }
 
     /// Perform one step of the CPU cycle.
     pub fn step(&mut self) -> usize {
         // Take the load delay, if we have one.
-        self.current_load_delay = self.load_delay.take();
-        self.current_is_bds = self.next_is_bds;
-        self.next_is_bds = false;
+        self.active_load_delay = self.scheduled_load.take();
+        self.current_branch_state = self.next_branch_state;
+        self.next_branch_state = BranchState::NotInDelaySlot;
 
         self.current_instruction_pc = self.pc;
         self.step_cycles = 0;
 
         // Fetch the instruction at the current program counter (PC).
         // This may be a delay slot instruction.
-        let instruction = match self.fetch_instruction(self.current_instruction_pc) {
-            Ok(value) => value,
-            Err(err) => {
-                // If we failed to fetch the instruction, we handle the error
-                self.memory_access_exception(
-                    err,
-                    AccessType::InstructionFetch,
-                    self.current_instruction_pc,
-                );
-                return 10;
-            }
-        };
+        let instruction =
+            match self.fetch_instruction(self.current_instruction_pc) {
+                Ok(value) => value,
+                Err(err) => {
+                    // If we failed to fetch the instruction, we handle the error
+                    self.memory_access_exception(
+                        err,
+                        AccessType::InstructionFetch,
+                        self.current_instruction_pc,
+                    );
+                    return 10;
+                }
+            };
 
         self.current_instruction = instruction.0;
 
@@ -220,9 +224,7 @@ impl Cpu {
                     0x2a => self.ins_slt(instruction),
                     0x2b => self.ins_sltu(instruction),
                     _ => {
-                        self.exception(
-                            ExceptionCause::ReservedInstruction,
-                        );
+                        self.exception(ExceptionCause::ReservedInstruction);
                     }
                 }
             }
@@ -303,9 +305,7 @@ impl Cpu {
             0x32 => self.ins_lwc2(instruction),
             0x3a => self.ins_swc2(instruction),
             _ => {
-                self.exception(
-                    ExceptionCause::ReservedInstruction,
-                );
+                self.exception(ExceptionCause::ReservedInstruction);
             }
         }
     }
@@ -341,7 +341,7 @@ impl Cpu {
     /// Completes a delayed load operation, unless it was started in the same
     /// cycle. Otherwise it marks the load for writeback in the next cycle.
     fn handle_load_delay(&mut self) {
-        if let Some(load) = self.current_load_delay.take() {
+        if let Some(load) = self.active_load_delay.take() {
             match load.coprocessor {
                 Some(0) => {
                     // COP0 delayed load
@@ -370,12 +370,16 @@ impl Cpu {
     }
 
     pub(super) fn exception(&mut self, cause: ExceptionCause) {
+        let in_bds = self.current_branch_state != BranchState::NotInDelaySlot;
+        let branch_taken =
+            self.current_branch_state == BranchState::InDelaySlot(true);
+
         self.pc = self.cop0.start_exception(
             cause,
             self.current_instruction_pc,
             self.pc,
-            self.current_is_bds,
-            self.branch_taken,
+            in_bds,
+            branch_taken,
             (self.current_instruction >> 26) & 3,
         );
         self.npc = self.pc.wrapping_add(4);

@@ -7,10 +7,11 @@ pub enum MemoryError {
     BusError,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
 pub enum AccessType {
     Read,
     Write,
+    #[default]
     InstructionFetch,
 }
 

@@ -123,7 +123,10 @@ impl Debugger {
 
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, AccessSize::Word).unwrap();
-        let is_branch_delay_slot = cpu.next_is_bds;
+        let is_branch_delay_slot = matches!(
+            cpu.next_branch_state,
+            crate::cpu::BranchState::InDelaySlot(_)
+        );
 
         println!(
             "[{:08x}] {}  {}",
@@ -609,9 +612,9 @@ impl Debugger {
             cpu.pc, cpu.hi, cpu.lo
         );
 
-        if let Some(load_delay) = &cpu.load_delay {
+        if let Some(load_delay) = &cpu.scheduled_load {
             println!(
-                "Pending load: {} -> {:08x}",
+                "Scheduled load: {} -> {:08x}",
                 REGISTERS[load_delay.target], load_delay.value
             );
         }

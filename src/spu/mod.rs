@@ -613,7 +613,8 @@ impl Voice {
             }
         }
 
-        self.current_sample = gauss::gaussian(self.last4_samples(), self.pitch_counter);
+        self.current_sample =
+            gauss::gaussian(self.last4_samples(), self.pitch_counter);
     }
 
     fn get_sample(&self) -> (i16, i16) {

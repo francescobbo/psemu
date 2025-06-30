@@ -7,7 +7,7 @@ mod operations;
 
 use bitfield::bitfield;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 struct RGB {
     r: u8,
     g: u8,
@@ -15,7 +15,7 @@ struct RGB {
     code: u8,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 struct XY {
     x: i16,
     y: i16,
@@ -23,9 +23,8 @@ struct XY {
 
 type Matrix = [[i16; 3]; 3];
 
+#[derive(Debug, Default)]
 pub struct Gte {
-    file: File,
-
     current_instruction: u32,
 
     cr: [u32; 32],
@@ -84,6 +83,7 @@ pub struct Gte {
 }
 
 bitfield! {
+    #[derive(Default)]
     pub struct Flags(u32);
     impl Debug;
 
@@ -118,8 +118,6 @@ impl Gte {
     /// Creates a new GTE instance
     pub fn new() -> Self {
         Gte {
-            file: File::create("gte.log").unwrap(),
-
             current_instruction: 0,
 
             cr: [0; 32],

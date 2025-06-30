@@ -4,6 +4,7 @@ pub const RAM_BASE: u32 = 0x0000_0000;
 pub const RAM_SIZE: usize = 2 * 1024 * 1024;
 pub const RAM_END: u32 = RAM_BASE + (RAM_SIZE - 1) as u32;
 
+#[derive(Default)]
 pub struct Ram {
     data: Vec<u8>,
 }
