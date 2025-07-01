@@ -123,10 +123,7 @@ impl Debugger {
 
         // Present the current instruction
         let ins = cpu.read_memory(cpu.pc, AccessSize::Word).unwrap();
-        let is_branch_delay_slot = matches!(
-            cpu.next_branch_state,
-            crate::cpu::BranchState::InDelaySlot(_)
-        );
+        let is_branch_delay_slot = cpu.next_branch_state.is_some();
 
         println!(
             "[{:08x}] {}  {}",
@@ -628,7 +625,7 @@ impl Debugger {
         let tar = cop.tar;
         let dcic = cop.dcic;
         let bad_vaddr = cop.bad_vaddr;
-        let bdma = cop.bdma;
+        let bdam = cop.bdam;
         let bpcm = cop.bpcm;
         let status = cop.status;
         let cause = cop.cause;
@@ -704,8 +701,8 @@ impl Debugger {
 
         println!("  bpc: {:08x}  bda: {:08x}  tar: {:08x}", bpc, bda, tar);
         println!(
-            "  dcic: {:08x}  bdma: {:08x}  bpcm: {:08x}",
-            dcic, bdma, bpcm
+            "  dcic: {:08x}  bdam: {:08x}  bpcm: {:08x}",
+            dcic, bdam, bpcm
         );
     }
 

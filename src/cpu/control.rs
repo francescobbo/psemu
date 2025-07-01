@@ -1,5 +1,3 @@
-use crate::cpu::branch;
-
 use super::Instruction;
 use super::control_types::*;
 
@@ -22,7 +20,7 @@ pub struct Cop0 {
     pub bad_vaddr: u32,
 
     /// r9 - Breakpoint Data Address Mask
-    pub bdma: u32,
+    pub bdam: u32,
 
     /// r11 - Breakpoint Program Counter Mask
     pub bpcm: u32,
@@ -42,11 +40,6 @@ pub struct Cop0 {
 const PROCESSOR_ID: u32 = 2;
 
 impl Cop0 {
-    /// Creates a new Cop0 instance with all registers initialized to zero.
-    pub fn new() -> Self {
-        Cop0::default()
-    }
-
     /// Reads a value from the specified Cop0 register.
     pub fn read(&self, reg: usize) -> Option<u32> {
         // Return the register based on the index
@@ -56,13 +49,23 @@ impl Cop0 {
             6 => Some(self.tar),
             7 => Some(self.dcic),
             8 => Some(self.bad_vaddr),
-            9 => Some(self.bdma),
+            9 => Some(self.bdam),
             11 => Some(self.bpcm),
             12 => Some(self.status.0),
             13 => Some(self.cause.0),
             14 => Some(self.epc),
             15 => Some(PROCESSOR_ID),
-            _ => None, // The register does not exist on the PS1
+            16..=31 => {
+                // Garbage registers, return a default value
+                println!("[Cop0] Read from garbage register {reg}");
+                Some(0xbeef_cafe)
+            }
+            0..=2 | 4 | 10 | 32..=63 => {
+                // Reserved registers, cause a Reserved Instruction Exception
+                println!("[Cop0] Read from reserved register {reg}");
+                None
+            }
+            _ => unreachable!()
         }
     }
 
@@ -76,7 +79,7 @@ impl Cop0 {
             6 => self.tar = value,
             7 => self.dcic = value,
             8 => self.bad_vaddr = value,
-            9 => self.bdma = value,
+            9 => self.bdam = value,
             11 => self.bpcm = value,
             12 => self.status.0 = value,
             13 => {
@@ -94,18 +97,22 @@ impl Cop0 {
         Ok(())
     }
 
-    pub fn execute(&mut self, instruction: Instruction) {
+    pub fn execute(&mut self, instruction: Instruction) -> bool {
         if instruction.cop_instruction() == 0x10 {
             // RFE: shift the low 6 bits of the Status Register by 2, then set
             // them again. KUo and IEo are copied, but left unchanged.
             let low_fields = self.status.low_fields();
             self.status
                 .set_low_fields(low_fields & 0x30 | (low_fields >> 2));
+
+            true
         } else {
-            panic!(
-                "[Cop0] Unimplemented coprocessor instruction: {:#x}",
-                instruction.cop_instruction()
+            println!(
+                "[Cop0] Unimplemented coprocessor instruction: {}",
+                instruction.0
             );
+
+            false
         }
     }
 

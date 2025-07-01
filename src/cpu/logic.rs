@@ -159,22 +159,31 @@ impl Cpu {
     /// 0C - ANDI - I-type
     /// ANDI rt, rs, immediate
     /// GPR[rt] = GPR[rs] & immediate_value
-    pub(super) fn ins_andi(&mut self, instr: Instruction) {
-        self.write_reg(instr.rt(), self.get_rs(instr) & instr.imm16());
+    pub(super) fn ins_andi(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rt(),
+            self.get_rs(instruction) & instruction.imm16(),
+        );
     }
 
     /// 0D - ORI - I-type
     /// ORI rt, rs, immediate
     /// GPR[rt] = GPR[rs] | immediate_value
-    pub(super) fn ins_ori(&mut self, instr: Instruction) {
-        self.write_reg(instr.rt(), self.get_rs(instr) | instr.imm16());
+    pub(super) fn ins_ori(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rt(),
+            self.get_rs(instruction) | instruction.imm16(),
+        );
     }
 
     /// 0E - XORI - I-type
     /// XORI rt, rs, immediate
     /// GPR[rt] = GPR[rs] ^ immediate_value
-    pub(super) fn ins_xori(&mut self, instr: Instruction) {
-        self.write_reg(instr.rt(), self.get_rs(instr) ^ instr.imm16());
+    pub(super) fn ins_xori(&mut self, instruction: Instruction) {
+        self.write_reg(
+            instruction.rt(),
+            self.get_rs(instruction) ^ instruction.imm16(),
+        );
     }
 }
 

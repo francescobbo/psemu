@@ -1,5 +1,5 @@
 use super::{Cpu, control_types::ExceptionCause};
-use crate::bus::AccessSize;
+use crate::{bus::AccessSize, cpu::Instruction};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MemoryError {
@@ -49,23 +49,10 @@ impl Cpu {
                     .map_err(|_| MemoryError::BusError)
             }
             MipsSegment::Kseg2 => {
-                // Most of kseg2 is unmapped
-                match address {
-                    0xfffe_0130 => {
-                        // This is the BIU/Cache Control Register
-                        Ok(self.biu_cache_control)
-                    }
-                    0xfffe_0000..=0xfffe_013f => {
-                        // These addresses are reserved for CPU control
-                        // registers, but their exact behavior is unknown.
-                        // Return all bits set to 1.
-                        println!(
-                            "[Cpu] Unimplemented read from reserved address {address:#x} in Kseg2"
-                        );
-                        Ok(0xffffffff)
-                    }
-                    _ => Err(MemoryError::BusError),
-                }
+                println!(
+                    "Unimplemented read from address {address:#x} in Kseg2"
+                );
+                Err(MemoryError::BusError)
             }
             _ => self
                 .bus
@@ -102,19 +89,13 @@ impl Cpu {
             MipsSegment::Kseg2 => {
                 // Most of kseg2 is unmapped
                 match address {
-                    0xfffe_0130 => {
-                        // This is the BIU/Cache Control Register
-                        self.biu_cache_control = value;
-                        Ok(())
-                    }
-                    0xfffe_0000..=0xfffe_013f => {
-                        // Ignore writes to these reserved addresses
+                    0xfffe_0130 => Ok(()),
+                    _ => {
                         println!(
-                            "[Cpu] Unimplemented write to reserved address {address:#x} in Kseg2"
+                            "Unimplemented write to address {address:#x} in Kseg2"
                         );
-                        Ok(())
+                        Err(MemoryError::BusError)
                     }
-                    _ => Err(MemoryError::BusError),
                 }
             }
             _ => self
@@ -173,6 +154,7 @@ impl Cpu {
         error: MemoryError,
         access_type: AccessType,
         address: u32,
+        instruction: Instruction,
     ) {
         use AccessType::*;
         use ExceptionCause::*;
@@ -189,7 +171,7 @@ impl Cpu {
             }
         };
 
-        self.exception(cause);
+        self.exception(cause, instruction);
         if error == AlignmentError {
             self.cop0.bad_vaddr = address;
         }

@@ -1,5 +1,3 @@
-use std::{fs::File, io::Write};
-
 use crate::cpu::Instruction;
 
 mod division;

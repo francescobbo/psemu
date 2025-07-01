@@ -45,8 +45,8 @@ impl Cpu {
     /// 20 - LB - I-type
     /// LB rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + offset, 8-bit])
-    pub(super) fn ins_lb(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
+    pub(super) fn ins_lb(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
 
         self.step_cycles += 5;
 
@@ -54,10 +54,15 @@ impl Cpu {
             Ok(value) => {
                 // Sign-extend the byte value
                 let value = value as i8 as u32;
-                self.delayed_load(instr.rt(), value);
+                self.delayed_load(instruction.rt(), value);
             }
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, address);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    address,
+                    instruction,
+                );
             }
         }
     }
@@ -65,8 +70,8 @@ impl Cpu {
     /// 21 - LH - I-type
     /// LH rt, offset(rs)
     /// GPR[rt] = sign_extend(Memory[rs + offset, 16-bit])
-    pub(super) fn ins_lh(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
+    pub(super) fn ins_lh(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
 
         self.step_cycles += 5;
 
@@ -74,10 +79,15 @@ impl Cpu {
             Ok(value) => {
                 // Sign-extend the half-word value
                 let value = value as i16 as u32;
-                self.delayed_load(instr.rt(), value);
+                self.delayed_load(instruction.rt(), value);
             }
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, address);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    address,
+                    instruction,
+                );
             }
         }
     }
@@ -86,8 +96,8 @@ impl Cpu {
     /// LWL rt, offset(rs)
     /// Loads the left (most significant) bytes of a word from an unaligned
     /// memory address.
-    pub(super) fn ins_lwl(&mut self, instr: Instruction) {
-        let addr = self.target_address(instr);
+    pub(super) fn ins_lwl(&mut self, instruction: Instruction) {
+        let addr = self.target_address(instruction);
 
         self.step_cycles += 5;
 
@@ -95,13 +105,18 @@ impl Cpu {
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
             Ok(value) => value,
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, addr);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    addr,
+                    instruction,
+                );
                 return;
             }
         };
 
         // Get the current value of the register (even if it's delayed)
-        let reg = self.get_possibly_delayed_reg(instr.rt());
+        let reg = self.get_possibly_delayed_reg(instruction.rt());
 
         // Depending on the address offset, we need to shift the loaded word
         let value = match addr & 3 {
@@ -112,14 +127,14 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.delayed_load(instr.rt(), value);
+        self.delayed_load(instruction.rt(), value);
     }
 
     /// 23 - LW - I-type
     /// LW rt, offset(rs)
     /// GPR[rt] = Memory[rs + offset, 32-bit]
-    pub(super) fn ins_lw(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
+    pub(super) fn ins_lw(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
 
         if address >= 0xbfc00000 {
             self.step_cycles += 24;
@@ -128,9 +143,14 @@ impl Cpu {
         }
 
         match self.read_memory(address, AccessSize::Word) {
-            Ok(value) => self.delayed_load(instr.rt(), value),
+            Ok(value) => self.delayed_load(instruction.rt(), value),
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, address);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    address,
+                    instruction,
+                );
             }
         }
     }
@@ -138,15 +158,20 @@ impl Cpu {
     /// 24 - LBU - I-type
     /// LBU rt, offset(rs)
     /// GPR[rt] = zero_extend(Memory[rs + offset, 8-bit])
-    pub(super) fn ins_lbu(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
+    pub(super) fn ins_lbu(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
 
         self.step_cycles += 5;
 
         match self.read_memory(address, AccessSize::Byte) {
-            Ok(value) => self.delayed_load(instr.rt(), value),
+            Ok(value) => self.delayed_load(instruction.rt(), value),
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, address);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    address,
+                    instruction,
+                );
             }
         }
     }
@@ -154,15 +179,20 @@ impl Cpu {
     /// 25 - LHU - I-type
     /// LHU rt, offset(rs)
     /// GPR[rt] = zero_extend(Memory[rs + offset, 16-bit])
-    pub(super) fn ins_lhu(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
+    pub(super) fn ins_lhu(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
 
         self.step_cycles += 5;
 
         match self.read_memory(address, AccessSize::HalfWord) {
-            Ok(value) => self.delayed_load(instr.rt(), value),
+            Ok(value) => self.delayed_load(instruction.rt(), value),
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, address);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    address,
+                    instruction,
+                );
             }
         }
     }
@@ -171,8 +201,8 @@ impl Cpu {
     /// LWR rt, offset(rs)
     /// Loads the right (least significant) bytes of a word from an unaligned
     /// memory address.
-    pub(super) fn ins_lwr(&mut self, instr: Instruction) {
-        let addr = self.target_address(instr);
+    pub(super) fn ins_lwr(&mut self, instruction: Instruction) {
+        let addr = self.target_address(instruction);
 
         self.step_cycles += 5;
 
@@ -180,12 +210,17 @@ impl Cpu {
         let aligned_word = match self.read_memory(addr & !3, AccessSize::Word) {
             Ok(value) => value,
             Err(err) => {
-                self.memory_access_exception(err, AccessType::Read, addr);
+                self.memory_access_exception(
+                    err,
+                    AccessType::Read,
+                    addr,
+                    instruction,
+                );
                 return;
             }
         };
 
-        let reg = self.get_possibly_delayed_reg(instr.rt());
+        let reg = self.get_possibly_delayed_reg(instruction.rt());
 
         let value = match addr & 3 {
             0 => aligned_word,
@@ -195,32 +230,42 @@ impl Cpu {
             _ => unreachable!(),
         };
 
-        self.delayed_load(instr.rt(), value);
+        self.delayed_load(instruction.rt(), value);
     }
 
     /// 28 - SB - I-type
     /// SB rt, offset(rs)
     /// Memory[rs + sign_extended(offset), 8-bit] = GPR[rt]
-    pub(super) fn ins_sb(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
-        let value = self.get_rt(instr);
+    pub(super) fn ins_sb(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
+        let value = self.get_rt(instruction);
 
         if let Err(err) = self.write_memory(address, value, AccessSize::Byte) {
-            self.memory_access_exception(err, AccessType::Write, address);
+            self.memory_access_exception(
+                err,
+                AccessType::Write,
+                address,
+                instruction,
+            );
         }
     }
 
     /// 29 - SH - I-type
     /// SH rt, offset(rs)
     /// Memory[rs + sign_extended(offset), 16-bit] = GPR[rt]
-    pub(super) fn ins_sh(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
-        let value = self.get_rt(instr);
+    pub(super) fn ins_sh(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
+        let value = self.get_rt(instruction);
 
         if let Err(err) =
             self.write_memory(address, value, AccessSize::HalfWord)
         {
-            self.memory_access_exception(err, AccessType::Write, address);
+            self.memory_access_exception(
+                err,
+                AccessType::Write,
+                address,
+                instruction,
+            );
         }
     }
 
@@ -228,8 +273,8 @@ impl Cpu {
     /// SWL rt, offset(rs)
     /// Stores the left (most significant) bytes of a word to an unaligned
     /// memory address.
-    pub(super) fn ins_swl(&mut self, instr: Instruction) {
-        let addr = self.target_address(instr);
+    pub(super) fn ins_swl(&mut self, instruction: Instruction) {
+        let addr = self.target_address(instruction);
 
         // Perform an aligned read of 4 bytes Note that the real SWL does not
         // read the memory, the merging is performed by the RAM chip. We shall
@@ -239,7 +284,7 @@ impl Cpu {
             .unwrap_or_default();
 
         // Get the current value of the register
-        let reg = self.get_rt(instr);
+        let reg = self.get_rt(instruction);
 
         // Depending on the address offset, we need to shift the loaded word
         let value = match addr & 3 {
@@ -253,19 +298,29 @@ impl Cpu {
         // Write the modified value back to memory, aligned to a word boundary
         if let Err(err) = self.write_memory(addr & !3, value, AccessSize::Word)
         {
-            self.memory_access_exception(err, AccessType::Write, addr & !3);
+            self.memory_access_exception(
+                err,
+                AccessType::Write,
+                addr & !3,
+                instruction,
+            );
         }
     }
 
     /// 2B - SW - I-type
     /// SW rt, offset(rs)
     /// Memory[rs + sign_extended(offset), 32-bit] = GPR[rt]
-    pub(super) fn ins_sw(&mut self, instr: Instruction) {
-        let address = self.target_address(instr);
-        let value = self.get_rt(instr);
+    pub(super) fn ins_sw(&mut self, instruction: Instruction) {
+        let address = self.target_address(instruction);
+        let value = self.get_rt(instruction);
 
         if let Err(err) = self.write_memory(address, value, AccessSize::Word) {
-            self.memory_access_exception(err, AccessType::Write, address);
+            self.memory_access_exception(
+                err,
+                AccessType::Write,
+                address,
+                instruction,
+            );
         }
     }
 
@@ -273,8 +328,8 @@ impl Cpu {
     /// SWR rt, offset(rs)
     /// Stores the right (least significant) bytes of a word to an unaligned
     /// memory address.
-    pub(super) fn ins_swr(&mut self, instr: Instruction) {
-        let addr = self.target_address(instr);
+    pub(super) fn ins_swr(&mut self, instruction: Instruction) {
+        let addr = self.target_address(instruction);
 
         // Perform an aligned read of 4 bytes
         let aligned_word = self
@@ -282,7 +337,7 @@ impl Cpu {
             .unwrap_or_default();
 
         // Get the current value of the register
-        let reg = self.get_rt(instr);
+        let reg = self.get_rt(instruction);
 
         // Depending on the address offset, we need to shift the loaded word
         let value = match addr & 3 {
@@ -296,7 +351,12 @@ impl Cpu {
         // Write the modified value back to memory, aligned to a word boundary
         if let Err(err) = self.write_memory(addr & !3, value, AccessSize::Word)
         {
-            self.memory_access_exception(err, AccessType::Write, addr & !3);
+            self.memory_access_exception(
+                err,
+                AccessType::Write,
+                addr & !3,
+                instruction,
+            );
         }
     }
 

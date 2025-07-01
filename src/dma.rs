@@ -327,7 +327,7 @@ impl Channel {
         match addr {
             0x00 => self.base,
             0x04 => self.read_block_control(),
-            0x08 => {
+            0x08 | 0x0c => {
                 // println!("[DMA] READ D{}_CHCR = {:08x};  State: {:?}; Trigger: {:?}; Sync:
                 // {:?}; Dir: {:?}; Step: {:?}; Chop: {:?}", self.n, self.
                 // channel_control, self.busy, self.trigger, self.sync_mode, self.direction,
@@ -336,7 +336,7 @@ impl Channel {
                 self.channel_control
             }
             _ => {
-                unreachable!()
+                todo!()
             }
         }
     }
@@ -346,8 +346,8 @@ impl Channel {
         match addr {
             0x00 => self.set_base(value),
             0x04 => self.set_block_control(value),
-            0x08 => self.set_channel_control(value),
-            _ => unreachable!(),
+            0x08 | 0x0c => self.set_channel_control(value),
+            _ => todo!(),
         };
     }
 

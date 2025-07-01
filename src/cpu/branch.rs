@@ -1,4 +1,4 @@
-use crate::cpu::{BranchState, Cpu, Instruction};
+use crate::cpu::{Cpu, Instruction};
 
 impl Cpu {
     fn schedule_branch(&mut self, target: Option<u32>, relative: bool) {
@@ -10,9 +10,9 @@ impl Cpu {
             };
 
             self.npc = address;
-            self.next_branch_state = BranchState::InDelaySlot(true);
+            self.next_branch_state = Some(true);
         } else {
-            self.next_branch_state = BranchState::InDelaySlot(false);
+            self.next_branch_state = Some(false);
         }
     }
 

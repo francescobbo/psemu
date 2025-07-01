@@ -111,7 +111,7 @@ impl Cpu {
             // If the addition was successful, write the result to the destination register
             Some(result) => self.write_reg(instruction.rd(), result as u32),
             // This means overflow occurred
-            None => self.exception(ExceptionCause::Overflow),
+            None => self.exception(ExceptionCause::Overflow, instruction),
         }
     }
 
@@ -146,7 +146,7 @@ impl Cpu {
 
         match rs.checked_sub(rt) {
             Some(result) => self.write_reg(instruction.rd(), result as u32),
-            None => self.exception(ExceptionCause::Overflow),
+            None => self.exception(ExceptionCause::Overflow, instruction),
         }
     }
 
@@ -168,13 +168,13 @@ impl Cpu {
     /// GPR[rt] = signed(GPR[rs]) + sign_extended(immediate_value)
     ///
     /// Causes overflow exception if the result is not representable in 32 bits
-    pub(super) fn ins_addi(&mut self, instr: Instruction) {
-        let value = self.get_rs(instr) as i32;
-        let immediate = instr.simm16();
+    pub(super) fn ins_addi(&mut self, instruction: Instruction) {
+        let value = self.get_rs(instruction) as i32;
+        let immediate = instruction.simm16();
 
         match value.checked_add(immediate) {
-            Some(result) => self.write_reg(instr.rt(), result as u32),
-            None => self.exception(ExceptionCause::Overflow),
+            Some(result) => self.write_reg(instruction.rt(), result as u32),
+            None => self.exception(ExceptionCause::Overflow, instruction),
         }
     }
 
@@ -183,18 +183,18 @@ impl Cpu {
     /// GPR[rt] = GPR[rs] + sign_extended(immediate_value)
     ///
     /// No overflow exception
-    pub(super) fn ins_addiu(&mut self, instr: Instruction) {
-        let immediate = instr.simm16() as u32;
-        let result = self.get_rs(instr).wrapping_add(immediate);
+    pub(super) fn ins_addiu(&mut self, instruction: Instruction) {
+        let immediate = instruction.simm16() as u32;
+        let result = self.get_rs(instruction).wrapping_add(immediate);
 
-        self.write_reg(instr.rt(), result);
+        self.write_reg(instruction.rt(), result);
     }
 
     /// 0F - LUI - I-type
     /// LUI rt, immediate
     /// GPR[rt] = immediate_value << 16
-    pub(super) fn ins_lui(&mut self, instr: Instruction) {
-        self.write_reg(instr.rt(), instr.imm16() << 16);
+    pub(super) fn ins_lui(&mut self, instruction: Instruction) {
+        self.write_reg(instruction.rt(), instruction.imm16() << 16);
     }
 }
 

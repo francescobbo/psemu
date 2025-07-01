@@ -1,6 +1,6 @@
 use crate::{
     bus::AccessSize,
-    cpu::{Cpu, Instruction, memory::AccessType},
+    cpu::{Cpu, Instruction, instruction, memory::AccessType},
 };
 
 use super::control_types::ExceptionCause;
@@ -8,14 +8,14 @@ use super::control_types::ExceptionCause;
 impl Cpu {
     /// 00.0C - SYSCALL
     /// Triggers a Syscall exception
-    pub fn ins_syscall(&mut self, _instruction: Instruction) {
-        self.exception(ExceptionCause::Syscall);
+    pub fn ins_syscall(&mut self, instruction: Instruction) {
+        self.exception(ExceptionCause::Syscall, instruction);
     }
 
     /// 00.0D - BREAK
     /// Triggers a Breakpoint exception
-    pub fn ins_break(&mut self, _instruction: Instruction) {
-        self.exception(ExceptionCause::Breakpoint);
+    pub fn ins_break(&mut self, instruction: Instruction) {
+        self.exception(ExceptionCause::Breakpoint, instruction);
     }
 
     /// 10.00 - MFC0 - R-Type (kind of)
@@ -25,7 +25,10 @@ impl Cpu {
         if let Some(value) = self.cop0.read(instruction.rd()) {
             self.delayed_load(instruction.rt(), value)
         } else {
-            panic!("Invalid COP0 register read: {}", instruction.rd());
+            self.exception(
+                ExceptionCause::ReservedInstruction,
+                instruction,
+            );
         }
     }
 
@@ -33,8 +36,11 @@ impl Cpu {
     /// CFC0 rt, rd
     /// GPR[rt] = COP0[rd + 32]
     /// This is guaranteed to fail on the PS1, as there's no COP0 control registers.
-    pub(super) fn ins_cfc0(&mut self, _instruction: Instruction) {
-        panic!("CFC0 instruction is not supported on PS1");
+    pub(super) fn ins_cfc0(&mut self, instruction: Instruction) {
+        self.exception(
+            ExceptionCause::ReservedInstruction,
+            instruction,
+        );
     }
 
     /// 10.04 - MTC0 - R-Type (kind of)
@@ -48,8 +54,11 @@ impl Cpu {
     /// CTC0 rt, rd
     /// COP0[rd + 32] = GPR[rt]
     /// See `ins_cfc0`
-    pub(super) fn ins_ctc0(&mut self, _instruction: Instruction) {
-        panic!("CTC0 instruction is not supported on PS1");
+    pub(super) fn ins_ctc0(&mut self, instruction: Instruction) {
+        self.exception(
+            ExceptionCause::ReservedInstruction,
+            instruction,
+        );
     }
 
     /// 12.00 - MFC2 - R-Type (kind of)
@@ -99,7 +108,12 @@ impl Cpu {
                 self.gte.write(instruction.rt(), value).unwrap();
             }
             Err(e) => {
-                self.memory_access_exception(e, AccessType::Read, address);
+                self.memory_access_exception(
+                    e,
+                    AccessType::Read,
+                    address,
+                    instruction,
+                );
             }
         };
     }
@@ -111,7 +125,12 @@ impl Cpu {
         match self.write_memory(address, value, AccessSize::Word) {
             Ok(_) => {}
             Err(e) => {
-                self.memory_access_exception(e, AccessType::Write, address);
+                self.memory_access_exception(
+                    e,
+                    AccessType::Write,
+                    address,
+                    instruction,
+                );
             }
         }
     }

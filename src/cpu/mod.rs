@@ -40,10 +40,10 @@ pub struct Cpu {
     pub lo: u32,
 
     /// The branch state for the instruction to be executed in the next cycle.
-    pub next_branch_state: BranchState,
+    pub next_branch_state: Option<bool>,
 
     /// The branch state for the instruction executing in the current cycle.
-    pub current_branch_state: BranchState,
+    pub active_branch_state: Option<bool>,
 
     /// A load instruction has just executed and scheduled this operation.
     /// It will become `active_load_delay` in the next cycle.
@@ -65,18 +65,8 @@ pub struct Cpu {
     // The COP2 coprocessor (the GTE), which handles graphics transformations.
     pub gte: gte::Gte,
 
-    /// The BIU/Cache Control Register
-    pub biu_cache_control: u32,
-
     /// Used by the debugger to trigger memory access breakpoints.
     pub last_memory_operation: (AccessType, u32),
-
-    /// Used exclusively to determine the Coprocessor number for the
-    /// CoprocessorUnavailable exception. That field in the CAUSE register
-    /// is set to the low 2 bits of the opcode, whether the instruction
-    /// is a coprocessor instruction or not. And whether the exception
-    /// is CoprocessorUnavailable or not. What a wasteland.
-    pub current_instruction: u32,
 }
 
 /// Represents a delayed load operation.
@@ -92,16 +82,6 @@ pub struct DelayedLoad {
     pub coprocessor: Option<u8>,
 }
 
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub enum BranchState {
-    #[default]
-    /// The instruction is not in a branch delay slot.
-    NotInDelaySlot,
-    /// The instruction is in a branch delay slot. The branch may or may not
-    /// be taken.
-    InDelaySlot(bool),
-}
-
 impl Cpu {
     pub fn new() -> Self {
         Cpu {
@@ -115,8 +95,7 @@ impl Cpu {
     pub fn step(&mut self) -> usize {
         // Take the load delay, if we have one.
         self.active_load_delay = self.scheduled_load.take();
-        self.current_branch_state = self.next_branch_state;
-        self.next_branch_state = BranchState::NotInDelaySlot;
+        self.active_branch_state = self.next_branch_state.take();
 
         self.current_instruction_pc = self.pc;
         self.step_cycles = 0;
@@ -132,12 +111,11 @@ impl Cpu {
                         err,
                         AccessType::InstructionFetch,
                         self.current_instruction_pc,
+                        Instruction(0),
                     );
                     return 10;
                 }
             };
-
-        self.current_instruction = instruction.0;
 
         if self.cop0.should_interrupt() {
             if instruction.opcode() == 0x12 && instruction.cop_execute() {
@@ -149,7 +127,7 @@ impl Cpu {
 
             // If the coprocessor requests an interrupt, we handle it
             self.handle_load_delay();
-            self.exception(ExceptionCause::Interrupt);
+            self.exception(ExceptionCause::Interrupt, instruction);
             return 10;
         }
 
@@ -224,7 +202,10 @@ impl Cpu {
                     0x2a => self.ins_slt(instruction),
                     0x2b => self.ins_sltu(instruction),
                     _ => {
-                        self.exception(ExceptionCause::ReservedInstruction);
+                        self.exception(
+                            ExceptionCause::ReservedInstruction,
+                            instruction,
+                        );
                     }
                 }
             }
@@ -271,7 +252,12 @@ impl Cpu {
                     }
                 }
             }
-            0x11 => panic!("COP1 is not present on PS1"),
+            0x11 => {
+                println!(
+                    "[CPU] Unimplemented coprocessor 1 instruction: {:08x}",
+                    instruction.0
+                );
+            }
             0x12 => {
                 if instruction.cop_execute() {
                     // GTE instructions
@@ -289,7 +275,12 @@ impl Cpu {
                     }
                 }
             }
-            0x13 => panic!("COP3 is not present on PS1"),
+            0x13 => {
+                println!(
+                    "[CPU] Unimplemented coprocessor 3 instruction: {:08x}",
+                    instruction.0
+                );
+            }
             0x20 => self.ins_lb(instruction),
             0x21 => self.ins_lh(instruction),
             0x22 => self.ins_lwl(instruction),
@@ -302,24 +293,48 @@ impl Cpu {
             0x2a => self.ins_swl(instruction),
             0x2b => self.ins_sw(instruction),
             0x2e => self.ins_swr(instruction),
+            0x30 => {
+                println!(
+                    "[CPU] LWC0 does not exist on the PS1"
+                );
+            }
+            0x31 => {
+                println!(
+                    "[CPU] LWC0 does not exist on the PS1"
+                );
+            }
             0x32 => self.ins_lwc2(instruction),
+            0x33 => {
+                println!(
+                    "[CPU] LWC0 does not exist on the PS1"
+                );
+            }
             0x3a => self.ins_swc2(instruction),
+            0x38..=0x3b => {
+                println!(
+                    "[CPU] Unimplemented instruction: {:08x}",
+                    instruction.0
+                );
+            }
             _ => {
-                self.exception(ExceptionCause::ReservedInstruction);
+                self.exception(
+                    ExceptionCause::ReservedInstruction,
+                    instruction,
+                );
             }
         }
     }
 
     /// Calculate the effective address for a load/store instruction
-    fn target_address(&self, instr: Instruction) -> u32 {
-        let offset = instr.simm16() as u32;
-        let rs_value = self.get_rs(instr);
+    fn target_address(&self, instruction: Instruction) -> u32 {
+        let offset = instruction.simm16() as u32;
+        let rs_value = self.get_rs(instruction);
         rs_value.wrapping_add(offset)
     }
 
     /// Get the value of the GPR register pointed to by rt
-    fn get_rt(&self, instr: Instruction) -> u32 {
-        self.registers[instr.rt()]
+    fn get_rt(&self, instruction: Instruction) -> u32 {
+        self.registers[instruction.rt()]
     }
 
     /// Get the value of the GPR register pointed to by rs
@@ -369,10 +384,15 @@ impl Cpu {
         }
     }
 
-    pub(super) fn exception(&mut self, cause: ExceptionCause) {
-        let in_bds = self.current_branch_state != BranchState::NotInDelaySlot;
-        let branch_taken =
-            self.current_branch_state == BranchState::InDelaySlot(true);
+    pub(super) fn exception(
+        &mut self,
+        cause: ExceptionCause,
+        instruction: Instruction,
+    ) {
+        let in_bds = self.active_branch_state.is_some();
+        let branch_taken = self.active_branch_state == Some(true);
+
+        let coprocessor_number = instruction.opcode() & 0x3;
 
         self.pc = self.cop0.start_exception(
             cause,
@@ -380,7 +400,7 @@ impl Cpu {
             self.pc,
             in_bds,
             branch_taken,
-            (self.current_instruction >> 26) & 3,
+            coprocessor_number,
         );
         self.npc = self.pc.wrapping_add(4);
     }
