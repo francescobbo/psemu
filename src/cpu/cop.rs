@@ -77,9 +77,9 @@ impl Cpu {
     /// GPR[rt] = COP2[rd + 32]
     pub(super) fn ins_cfc2(&mut self, instruction: Instruction) {
         if let Some(value) = self.gte.read(instruction.rd() + 32) {
-            self.write_reg(instruction.rt(), value);
+            self.delayed_load(instruction.rt(), value);
         } else {
-            panic!("Invalid GTE register read: {}", instruction.rd());
+            panic!("Invalid GTE register read: {}", instruction.rd() + 32);
         }
     }
 
