@@ -1,6 +1,5 @@
 use crate::cpu::gte::{
-    Gte,
-    types::{Accumulator, Matrix, Vector},
+    types::{Accumulator, Matrix, Settable, Vector}, Gte
 };
 
 macro_rules! sign_x_to_s64 {

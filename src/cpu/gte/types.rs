@@ -34,19 +34,6 @@ impl Accumulator {
         }
     }
 
-    /// Takes a new value and initializes the accumulator.
-    /// The value is clamped to fit within the 44-bit signed integer range.
-    pub fn set(&mut self, value: i64) {
-        if value > Self::MAX {
-            self.positive_overflow = true;
-        } else if value < Self::MIN {
-            self.negative_overflow = true;
-        }
-
-        // Ignore bits over 44, then sign extend as an i44
-        self.value = (value << 20) >> 20;
-    }
-
     pub fn get(&self) -> u32 {
         // Return the lower 32 bits of the accumulator value
         self.value as u32
@@ -60,6 +47,31 @@ impl Accumulator {
     /// Consumes the accumulator, performing the final shift and returning a 32-bit integer.
     pub fn commit(self, shift_fractional: u32) -> i32 {
         (self.value >> shift_fractional) as i32
+    }
+}
+
+pub trait Settable<T> {
+    fn set(&mut self, value: T);
+}
+
+impl Settable<i64> for Accumulator {
+    /// Takes a new value and initializes the accumulator.
+    /// The value is clamped to fit within the 44-bit signed integer range.
+    fn set(&mut self, value: i64) {
+        if value > Self::MAX {
+            self.positive_overflow = true;
+        } else if value < Self::MIN {
+            self.negative_overflow = true;
+        }
+
+        // Ignore bits over 44, then sign extend as an i44
+        self.value = (value << 20) >> 20;
+    }
+}
+
+impl Settable<i32> for Accumulator {
+    fn set(&mut self, value: i32) {
+        self.value = value as u32 as i64;
     }
 }
 
@@ -135,5 +147,16 @@ impl Shr<usize> for Vector<i32> {
             self.0[1] >> rhs,
             self.0[2] >> rhs,
         ])
+    }
+}
+
+impl<T> Settable<Vector<i64>> for Vector<T>
+where
+    T: Settable<i64>,
+{
+    fn set(&mut self, value: Vector<i64>) {
+        self[0].set(value[0]);
+        self[1].set(value[1]);
+        self[2].set(value[2]);
     }
 }
