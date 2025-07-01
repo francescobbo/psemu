@@ -1,7 +1,11 @@
-use crate::cpu::Instruction;
+use crate::cpu::{
+    Instruction,
+    gte::types::{Matrix, Vector},
+};
 
 mod division;
 mod operations;
+mod types;
 
 use bitfield::bitfield;
 
@@ -19,8 +23,6 @@ struct XY {
     y: i16,
 }
 
-type Matrix = [[i16; 3]; 3];
-
 #[derive(Debug, Default)]
 pub struct Gte {
     current_instruction: u32,
@@ -31,10 +33,10 @@ pub struct Gte {
     light: Matrix,
     color: Matrix,
 
-    t: [i32; 4],
-    b: [i32; 4],
-    fc: [i32; 4],
-    null: [i32; 4],
+    t: Vector<i32>,
+    b: Vector<i32>,
+    fc: Vector<i32>,
+    null: Vector<i32>,
 
     /// Screen offset
     /// 32 bit, signed 15.16 fixed point
@@ -51,13 +53,14 @@ pub struct Gte {
     zsf3: i16,
     zsf4: i16,
 
-    vectors: [[i16; 4]; 3],
+    vectors: [Vector<i16>; 3],
     rgb: RGB,
     otz: u16,
 
     /// Intermediary registers
     /// 16 bit integers, signed.
-    ir: [i16; 4],
+    ir0: i16,
+    ir: Vector<i16>,
 
     xy_fifo: [XY; 4],
 
@@ -69,7 +72,8 @@ pub struct Gte {
 
     /// Math accumulators.
     /// 32 bit integers, signed.
-    mac: [i32; 4],
+    mac0: i32,
+    mac: [i32; 3],
 
     lzcs: u32,
     lzcr: u32,
@@ -120,14 +124,14 @@ impl Gte {
 
             cr: [0; 32],
 
-            rotation: [[0; 3]; 3],
-            light: [[0; 3]; 3],
-            color: [[0; 3]; 3],
+            rotation: Matrix([Vector([0; 3]); 3]),
+            light: Matrix([Vector([0; 3]); 3]),
+            color: Matrix([Vector([0; 3]); 3]),
 
-            t: [0; 4],
-            b: [0; 4],
-            fc: [0; 4],
-            null: [0; 4],
+            t: Vector([0; 3]),
+            b: Vector([0; 3]),
+            fc: Vector([0; 3]),
+            null: Vector([0; 3]),
 
             ofx: 0,
             ofy: 0,
@@ -138,7 +142,7 @@ impl Gte {
             zsf3: 0,
             zsf4: 0,
 
-            vectors: [[0; 4]; 3],
+            vectors: [Vector([0; 3]); 3],
             rgb: RGB {
                 r: 0,
                 g: 0,
@@ -147,7 +151,8 @@ impl Gte {
             },
             otz: 0,
 
-            ir: [0; 4],
+            ir0: 0,
+            ir: Vector([0; 3]),
 
             xy_fifo: [XY { x: 0, y: 0 }; 4],
             z_fifo: [0; 4],
@@ -157,7 +162,8 @@ impl Gte {
                 b: 0,
                 code: 0,
             }; 3],
-            mac: [0; 4],
+            mac0: 0,
+            mac: [0; 3],
             lzcs: 0,
             lzcr: 0,
             r23: 0,
@@ -253,16 +259,16 @@ impl Gte {
                 self.otz = value as u16;
             }
             8 => {
-                self.ir[0] = value as i16;
+                self.ir0 = value as i16;
             }
             9 => {
-                self.ir[1] = value as i16;
+                self.ir[0] = value as i16;
             }
             10 => {
-                self.ir[2] = value as i16;
+                self.ir[1] = value as i16;
             }
             11 => {
-                self.ir[3] = value as i16;
+                self.ir[2] = value as i16;
             }
             12 => {
                 self.xy_fifo[0].x = value as i16;
@@ -320,21 +326,21 @@ impl Gte {
                 self.r23 = value;
             }
             24 => {
-                self.mac[0] = value as i32;
+                self.mac0 = value as i32;
             }
             25 => {
-                self.mac[1] = value as i32;
+                self.mac[0] = value as i32;
             }
             26 => {
-                self.mac[2] = value as i32;
+                self.mac[1] = value as i32;
             }
             27 => {
-                self.mac[3] = value as i32;
+                self.mac[2] = value as i32;
             }
             28 => {
-                self.ir[1] = ((value & 0x1f) << 7) as i16;
-                self.ir[2] = (((value >> 5) & 0x1f) << 7) as i16;
-                self.ir[3] = (((value >> 10) & 0x1f) << 7) as i16;
+                self.ir[0] = ((value & 0x1f) << 7) as i16;
+                self.ir[1] = (((value >> 5) & 0x1f) << 7) as i16;
+                self.ir[2] = (((value >> 10) & 0x1f) << 7) as i16;
             }
             29 => {}
             30 => {
@@ -377,10 +383,10 @@ impl Gte {
                     | ((self.rgb.code as u32) << 24)
             }
             7 => self.otz as u32,
-            8 => self.ir[0] as u32,
-            9 => self.ir[1] as u32,
-            10 => self.ir[2] as u32,
-            11 => self.ir[3] as u32,
+            8 => self.ir0 as u32,
+            9 => self.ir[0] as u32,
+            10 => self.ir[1] as u32,
+            11 => self.ir[2] as u32,
             12 => {
                 (self.xy_fifo[0].x as u16 as u32)
                     | ((self.xy_fifo[0].y as u16 as u32) << 16)
@@ -416,14 +422,14 @@ impl Gte {
                     | ((self.rgb_fifo[2].code as u32) << 24)
             }
             23 => self.r23,
-            24 => self.mac[0] as u32,
-            25 => self.mac[1] as u32,
-            26 => self.mac[2] as u32,
-            27 => self.mac[3] as u32,
+            24 => self.mac0 as u32,
+            25 => self.mac[0] as u32,
+            26 => self.mac[1] as u32,
+            27 => self.mac[2] as u32,
             28 | 29 => {
-                Gte::sat5(self.ir[1] >> 7) as u32
-                    | ((Gte::sat5(self.ir[2] >> 7) as u32) << 5)
-                    | ((Gte::sat5(self.ir[3] >> 7) as u32) << 10)
+                Gte::sat5(self.ir[0] >> 7) as u32
+                    | ((Gte::sat5(self.ir[1] >> 7) as u32) << 5)
+                    | ((Gte::sat5(self.ir[2] >> 7) as u32) << 10)
             }
             30 => self.lzcs,
             31 => {
@@ -532,23 +538,23 @@ impl Gte {
 
                 match index {
                     0 => {
-                        matrix[0][0] = value as i16;
-                        matrix[0][1] = (value >> 16) as i16;
+                        matrix.0[0][0] = value as i16;
+                        matrix.0[0][1] = (value >> 16) as i16;
                     }
                     1 => {
-                        matrix[0][2] = value as i16;
-                        matrix[1][0] = (value >> 16) as i16;
+                        matrix.0[0][2] = value as i16;
+                        matrix.0[1][0] = (value >> 16) as i16;
                     }
                     2 => {
-                        matrix[1][1] = value as i16;
-                        matrix[1][2] = (value >> 16) as i16;
+                        matrix.0[1][1] = value as i16;
+                        matrix.0[1][2] = (value >> 16) as i16;
                     }
                     3 => {
-                        matrix[2][0] = value as i16;
-                        matrix[2][1] = (value >> 16) as i16;
+                        matrix.0[2][0] = value as i16;
+                        matrix.0[2][1] = (value >> 16) as i16;
                     }
                     4 => {
-                        matrix[2][2] = value as i16;
+                        matrix.0[2][2] = value as i16;
                     }
                     _ => unreachable!(),
                 }

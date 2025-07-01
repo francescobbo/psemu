@@ -294,20 +294,14 @@ impl Cpu {
             0x2b => self.ins_sw(instruction),
             0x2e => self.ins_swr(instruction),
             0x30 => {
-                println!(
-                    "[CPU] LWC0 does not exist on the PS1"
-                );
+                println!("[CPU] LWC0 does not exist on the PS1");
             }
             0x31 => {
-                println!(
-                    "[CPU] LWC0 does not exist on the PS1"
-                );
+                println!("[CPU] LWC0 does not exist on the PS1");
             }
             0x32 => self.ins_lwc2(instruction),
             0x33 => {
-                println!(
-                    "[CPU] LWC0 does not exist on the PS1"
-                );
+                println!("[CPU] LWC0 does not exist on the PS1");
             }
             0x3a => self.ins_swc2(instruction),
             0x38..=0x3b => {

@@ -25,10 +25,7 @@ impl Cpu {
         if let Some(value) = self.cop0.read(instruction.rd()) {
             self.delayed_load(instruction.rt(), value)
         } else {
-            self.exception(
-                ExceptionCause::ReservedInstruction,
-                instruction,
-            );
+            self.exception(ExceptionCause::ReservedInstruction, instruction);
         }
     }
 
@@ -37,10 +34,7 @@ impl Cpu {
     /// GPR[rt] = COP0[rd + 32]
     /// This is guaranteed to fail on the PS1, as there's no COP0 control registers.
     pub(super) fn ins_cfc0(&mut self, instruction: Instruction) {
-        self.exception(
-            ExceptionCause::ReservedInstruction,
-            instruction,
-        );
+        self.exception(ExceptionCause::ReservedInstruction, instruction);
     }
 
     /// 10.04 - MTC0 - R-Type (kind of)
@@ -55,10 +49,7 @@ impl Cpu {
     /// COP0[rd + 32] = GPR[rt]
     /// See `ins_cfc0`
     pub(super) fn ins_ctc0(&mut self, instruction: Instruction) {
-        self.exception(
-            ExceptionCause::ReservedInstruction,
-            instruction,
-        );
+        self.exception(ExceptionCause::ReservedInstruction, instruction);
     }
 
     /// 12.00 - MFC2 - R-Type (kind of)

@@ -65,7 +65,7 @@ impl Cop0 {
                 println!("[Cop0] Read from reserved register {reg}");
                 None
             }
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
