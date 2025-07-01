@@ -17,6 +17,12 @@ struct RGB {
     code: u8,
 }
 
+impl RGB {
+    fn as_vector(&self) -> Vector<i16> {
+        Vector([self.r as i16, self.g as i16, self.b as i16])
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct XY {
     x: i16,

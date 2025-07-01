@@ -1,5 +1,6 @@
 use crate::cpu::gte::{
-    types::{Accumulator, Matrix, Settable, Vector}, Gte
+    Gte,
+    types::{Accumulator, Matrix, Settable, Vector},
 };
 
 macro_rules! sign_x_to_s64 {
@@ -9,7 +10,7 @@ macro_rules! sign_x_to_s64 {
 }
 
 impl Gte {
-    fn sf(&self) -> u32 {
+    fn sf(&self) -> usize {
         if self.current_instruction & (1 << 19) != 0 {
             12
         } else {
@@ -71,9 +72,11 @@ impl Gte {
     }
 
     pub(crate) fn ins_sqr(&mut self) {
-        self.mac[0] = (self.ir[0] as i32 * self.ir[0] as i32) >> self.sf();
-        self.mac[1] = (self.ir[1] as i32 * self.ir[1] as i32) >> self.sf();
-        self.mac[2] = (self.ir[2] as i32 * self.ir[2] as i32) >> self.sf();
+        let res = (self.ir * self.ir) >> self.sf();
+
+        for i in 0..3 {
+            self.mac[i] = res[i];
+        }
 
         self.mac_to_ir(self.lm());
     }
@@ -111,7 +114,7 @@ impl Gte {
         self.otz = self.lm_d(self.mac0 >> 12, false) as u16;
     }
 
-    fn norm_color(&mut self, sf: u32, lm: bool, v: usize) {
+    fn norm_color(&mut self, sf: usize, lm: bool, v: usize) {
         self.multiply_matrix_by_vector(
             self.light,
             self.vectors[v],
@@ -178,7 +181,7 @@ impl Gte {
         }
     }
 
-    fn norm_color_depth_cue(&mut self, v: usize, sf: u32, lm: bool) {
+    fn norm_color_depth_cue(&mut self, v: usize, sf: usize, lm: bool) {
         self.multiply_matrix_by_vector(
             self.light,
             self.vectors[v],
@@ -197,52 +200,32 @@ impl Gte {
 
     fn depth_cue(
         &mut self,
-        mult_ir123: bool,
+        mult_ir: bool,
         rgb_from_fifo: bool,
-        sf: u32,
+        sf: usize,
         lm: bool,
     ) {
-        let mut rgb_temp: [i32; 3] = [0; 3];
-        let ir_temp: [i32; 3] =
-            [self.ir[0] as i32, self.ir[1] as i32, self.ir[2] as i32];
-
-        if rgb_from_fifo {
-            rgb_temp[0] = (self.rgb_fifo[0].r as i32) << 4;
-            rgb_temp[1] = (self.rgb_fifo[0].g as i32) << 4;
-            rgb_temp[2] = (self.rgb_fifo[0].b as i32) << 4;
+        let rgb_temp = if rgb_from_fifo {
+            self.rgb_fifo[0].as_vector() << 4
         } else {
-            rgb_temp[0] = (self.rgb.r as i32) << 4;
-            rgb_temp[1] = (self.rgb.g as i32) << 4;
-            rgb_temp[2] = (self.rgb.b as i32) << 4;
-        }
+            self.rgb.as_vector() << 4
+        };
 
-        if mult_ir123 {
-            for i in 0..3 {
-                self.mac[i] = (self.a_mv(
-                    i,
-                    ((self.fc[i] as i64) << 12)
-                        - rgb_temp[i] as i64 * ir_temp[i] as i64,
-                ) >> sf) as i32;
-                let lm_b = self.lm_b(i, self.mac[i], false) as i64;
-                self.mac[i] = (self.a_mv(
-                    i,
-                    rgb_temp[i] as i64 * ir_temp[i] as i64
-                        + self.ir0 as i64 * lm_b,
-                ) >> sf) as i32;
-            }
+        let fc = self.fc.as_fixed(12);
+        let v = if mult_ir {
+            rgb_temp * self.ir
         } else {
-            for i in 0..3 {
-                self.mac[i] = (self.a_mv(
-                    i,
-                    ((self.fc[i] as i64) << 12)
-                        - ((rgb_temp[i] as u32) << 12) as i64,
-                ) >> sf) as i32;
-                let lm_b = self.lm_b(i, self.mac[i], false) as i64;
-                self.mac[i] = (self.a_mv(
-                    i,
-                    ((rgb_temp[i] as i64) << 12) + self.ir0 as i64 * lm_b,
-                ) >> sf) as i32;
-            }
+            rgb_temp * Vector::<i16>([0x1000, 0x1000, 0x1000])
+        };
+
+        for i in 0..3 {
+            self.mac[i] =
+                (self.a_mv(i, fc[i].value - v[i] as i64) >> sf) as i32;
+
+            let lm_b = self.lm_b(i, self.mac[i], false) as i64;
+
+            self.mac[i] = (self.a_mv(i, v[i] as i64 + self.ir0 as i64 * lm_b)
+                >> sf) as i32;
         }
 
         self.mac_to_ir(lm);
@@ -263,7 +246,7 @@ impl Gte {
         matrix: Matrix,
         v: Vector<i16>,
         crv: Vector<i32>,
-        sf: u32,
+        sf: usize,
         lm: bool,
     ) {
         let mut tmp: [i64; 3] = [0; 3];
@@ -295,7 +278,7 @@ impl Gte {
         matrix: Matrix,
         v: Vector<i16>,
         crv: Vector<i32>,
-        sf: u32,
+        sf: usize,
         lm: bool,
         is_fc: bool,
     ) {
@@ -307,7 +290,7 @@ impl Gte {
 
             acc += mulr[0];
             if is_fc {
-                self.lm_b(i, acc.commit(sf), false);
+                self.lm_b(i, (acc.value >> sf) as i32, false);
                 acc.set(0);
             }
             acc += mulr[1];
@@ -319,7 +302,7 @@ impl Gte {
             if acc.negative_overflow {
                 self.flags.0 |= 1 << (27 - i);
             }
-            self.mac[i] = acc.commit(sf);
+            self.mac[i] = (acc.value >> sf) as i32;
         }
 
         self.mac_to_ir(lm);
@@ -403,10 +386,7 @@ impl Gte {
         self.mac[1] = self.lm_b(2, ir2 as i32, self.lm()) as i32;
         self.mac[2] = self.lm_b(3, ir3 as i32, self.lm()) as i32;
 
-        self.ir[0] = self.lm_b(1, self.mac[0], self.lm());
-        self.ir[1] = self.lm_b(2, self.mac[1], self.lm());
-        self.ir[2] = self.lm_b(3, self.mac[2], self.lm());
-
+        self.mac_to_ir(self.lm());
         self.mac_to_rgb_fifo();
     }
 
@@ -624,7 +604,7 @@ impl Gte {
         }
     }
 
-    fn norm_color_color(&mut self, v: usize, sf: u32, lm: bool) {
+    fn norm_color_color(&mut self, v: usize, sf: usize, lm: bool) {
         self.multiply_matrix_by_vector(
             self.light,
             self.vectors[v],
@@ -643,7 +623,6 @@ impl Gte {
         self.mac[2] = (((self.rgb.b as i32) << 4) * self.ir[2] as i32) >> sf;
 
         self.mac_to_ir(lm);
-
         self.mac_to_rgb_fifo();
     }
 
