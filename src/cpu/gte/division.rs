@@ -1,4 +1,4 @@
-pub fn division(dividend: u16, divisor: u16) -> (u32, bool) {
+pub fn division(dividend: u16, divisor: u16) -> (i64, bool) {
     if (dividend as u32) >= (divisor as u32 * 2) {
         return (0x1_ffff, true);
     }
@@ -13,7 +13,7 @@ pub fn division(dividend: u16, divisor: u16) -> (u32, bool) {
     // Round to nearest integer and shift back to fixed-point format
     let result = (result + 0x8000) >> 16;
 
-    (result.min(0x1_ffff) as u32, false)
+    (result.min(0x1_ffff) as i64, false)
 }
 
 /// Approximate reciprocal of a 16-bit unsigned integer using the Unsigned

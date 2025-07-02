@@ -106,6 +106,12 @@ impl Matrix {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Vector<T>(pub [T; 3]);
 
+impl Vector<i16> {
+    pub fn grow(&self) -> Vector<i32> {
+        Vector([self.0[0] as i32, self.0[1] as i32, self.0[2] as i32])
+    }
+}
+
 impl<T> Index<usize> for Vector<T> {
     type Output = T;
 

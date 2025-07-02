@@ -35,13 +35,10 @@ impl Gte {
             self.rotation,
             self.vectors[0],
             self.t,
-            self.sf(),
             self.lm(),
         );
 
         let (h_div_sz, of) = super::division::division(self.h, self.z_fifo[3]);
-        let h_div_sz = h_div_sz as i64;
-
         if of {
             self.flags.set_division_overflow(true);
         }
@@ -50,24 +47,30 @@ impl Gte {
         self.transform_dq(h_div_sz);
     }
 
+    // Edge function!
     pub(super) fn ins_nclip(&mut self) {
-        self.mac0 = self.mac0_ovf(
-            (self.xy_fifo[0].x as i64
-                * (self.xy_fifo[1].y as i64 - self.xy_fifo[2].y as i64))
-                + (self.xy_fifo[1].x as i64
-                    * (self.xy_fifo[2].y as i64 - self.xy_fifo[0].y as i64))
-                + (self.xy_fifo[2].x as i64
-                    * (self.xy_fifo[0].y as i64 - self.xy_fifo[1].y as i64)),
-        ) as i32;
+        let p0 = self.xy_fifo[0];
+        let p1 = self.xy_fifo[1];
+        let p2 = self.xy_fifo[2];
+
+        let x0 = p0.x as i64;
+        let y0 = p0.y as i64;
+        let x1 = p1.x as i64;
+        let y1 = p1.y as i64;
+        let x2 = p2.x as i64;
+        let y2 = p2.y as i64;
+
+        self.mac0 =
+            self.mac0_ovf((x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0));
     }
 
     pub(crate) fn ins_ncds(&mut self) {
-        self.norm_color_depth_cue(0, self.sf(), self.lm());
+        self.norm_color_depth_cue(0);
     }
 
     pub(crate) fn ins_ncdt(&mut self) {
         for i in 0..3 {
-            self.norm_color_depth_cue(i, self.sf(), self.lm());
+            self.norm_color_depth_cue(i);
         }
     }
 
@@ -78,68 +81,59 @@ impl Gte {
             self.mac[i] = res[i];
         }
 
-        self.mac_to_ir(self.lm());
+        self.mac_to_ir();
     }
 
     pub(crate) fn ins_ncs(&mut self) {
-        self.norm_color(self.sf(), self.lm(), 0);
+        self.norm_color(0);
     }
 
     pub(crate) fn ins_nct(&mut self) {
         for i in 0..3 {
-            self.norm_color(self.sf(), self.lm(), i);
+            self.norm_color(i);
         }
     }
 
     pub(crate) fn ins_dcpl(&mut self) {
-        self.depth_cue(true, false, self.sf(), self.lm());
+        self.depth_cue(true, false);
     }
 
     pub(crate) fn ins_dpcs(&mut self) {
-        self.depth_cue(false, false, self.sf(), self.lm());
+        self.depth_cue(false, false);
     }
 
     pub(crate) fn ins_dpct(&mut self) {
         for _ in 0..3 {
-            self.depth_cue(false, true, self.sf(), self.lm());
+            self.depth_cue(false, true);
         }
     }
 
     pub(super) fn ins_avsz4(&mut self) {
-        self.mac0 = self.f(self.zsf4 as i64
-            * (self.z_fifo[0] as i64
-                + self.z_fifo[1] as i64
-                + self.z_fifo[2] as i64
-                + self.z_fifo[3] as i64)) as i32;
+        self.mac0 = self.mac0_ovf(
+            self.zsf4 as i64
+                * (self.z_fifo[0] as i64
+                    + self.z_fifo[1] as i64
+                    + self.z_fifo[2] as i64
+                    + self.z_fifo[3] as i64),
+        );
         self.otz = self.lm_d(self.mac0 >> 12, false) as u16;
     }
 
-    fn norm_color(&mut self, sf: usize, lm: bool, v: usize) {
+    fn norm_color(&mut self, v: usize) {
         self.multiply_matrix_by_vector(
             self.light,
             self.vectors[v],
             self.null,
-            sf,
-            lm,
             false,
         );
 
-        self.multiply_matrix_by_vector(
-            self.color, self.ir, self.b, sf, lm, false,
-        );
+        self.multiply_matrix_by_vector(self.color, self.ir, self.b, false);
 
         self.mac_to_rgb_fifo();
     }
 
     pub(crate) fn ins_cc(&mut self) {
-        self.multiply_matrix_by_vector(
-            self.color,
-            self.ir,
-            self.b,
-            self.sf(),
-            self.lm(),
-            false,
-        );
+        self.multiply_matrix_by_vector(self.color, self.ir, self.b, false);
 
         self.mac[0] =
             (((self.rgb.r as i32) << 4) * self.ir[0] as i32) >> self.sf();
@@ -148,12 +142,12 @@ impl Gte {
         self.mac[2] =
             (((self.rgb.b as i32) << 4) * self.ir[2] as i32) >> self.sf();
 
-        self.mac_to_ir(self.lm());
+        self.mac_to_ir();
         self.mac_to_rgb_fifo();
     }
 
     pub(crate) fn ins_nccs(&mut self) {
-        self.norm_color_color(0, self.sf(), self.lm());
+        self.norm_color_color(0);
     }
 
     pub(super) fn ins_rtpt(&mut self) {
@@ -162,12 +156,10 @@ impl Gte {
                 self.rotation,
                 self.vectors[i],
                 self.t,
-                self.sf(),
                 self.lm(),
             );
             let (h_div_sz, of) =
                 super::division::division(self.h, self.z_fifo[3]);
-            let h_div_sz = h_div_sz as i64;
 
             if of {
                 self.flags.set_division_overflow(true);
@@ -181,30 +173,20 @@ impl Gte {
         }
     }
 
-    fn norm_color_depth_cue(&mut self, v: usize, sf: usize, lm: bool) {
+    fn norm_color_depth_cue(&mut self, v: usize) {
         self.multiply_matrix_by_vector(
             self.light,
             self.vectors[v],
             self.null,
-            sf,
-            lm,
             false,
         );
 
-        self.multiply_matrix_by_vector(
-            self.color, self.ir, self.b, sf, lm, false,
-        );
+        self.multiply_matrix_by_vector(self.color, self.ir, self.b, false);
 
-        self.depth_cue(true, false, sf, lm);
+        self.depth_cue(true, false);
     }
 
-    fn depth_cue(
-        &mut self,
-        mult_ir: bool,
-        rgb_from_fifo: bool,
-        sf: usize,
-        lm: bool,
-    ) {
+    fn depth_cue(&mut self, mult_ir: bool, rgb_from_fifo: bool) {
         let rgb_temp = if rgb_from_fifo {
             self.rgb_fifo[0].as_vector() << 4
         } else {
@@ -220,15 +202,15 @@ impl Gte {
 
         for i in 0..3 {
             self.mac[i] =
-                (self.a_mv(i, fc[i].value - v[i] as i64) >> sf) as i32;
+                (self.a_mv(i, fc[i].value - v[i] as i64) >> self.sf()) as i32;
 
             let lm_b = self.lm_b(i, self.mac[i], false) as i64;
 
             self.mac[i] = (self.a_mv(i, v[i] as i64 + self.ir0 as i64 * lm_b)
-                >> sf) as i32;
+                >> self.sf()) as i32;
         }
 
-        self.mac_to_ir(lm);
+        self.mac_to_ir();
         self.mac_to_rgb_fifo();
     }
 
@@ -246,7 +228,6 @@ impl Gte {
         matrix: Matrix,
         v: Vector<i16>,
         crv: Vector<i32>,
-        sf: usize,
         lm: bool,
     ) {
         let mut tmp: [i64; 3] = [0; 3];
@@ -260,12 +241,12 @@ impl Gte {
             tmp[i] = self.a_mv(i, tmp[i] + mulr[1] as i64);
             tmp[i] = self.a_mv(i, tmp[i] + mulr[2] as i64);
 
-            self.mac[i] = (tmp[i] >> sf) as i32;
+            self.mac[i] = (tmp[i] >> self.sf()) as i32;
         }
 
         self.ir[0] = self.lm_b(0, self.mac[0], lm);
         self.ir[1] = self.lm_b(1, self.mac[1], lm);
-        self.ir[2] = self.lm_b_ptz(2, self.mac[2], (tmp[2] >> 12) as i32, lm);
+        self.ir[2] = self.lm_b_ptz(2, self.mac[2], (tmp[2] >> 12) as i32);
 
         self.z_fifo[0] = self.z_fifo[1];
         self.z_fifo[1] = self.z_fifo[2];
@@ -278,8 +259,6 @@ impl Gte {
         matrix: Matrix,
         v: Vector<i16>,
         crv: Vector<i32>,
-        sf: usize,
-        lm: bool,
         is_fc: bool,
     ) {
         for i in 0..3 {
@@ -290,7 +269,7 @@ impl Gte {
 
             acc += mulr[0];
             if is_fc {
-                self.lm_b(i, (acc.value >> sf) as i32, false);
+                self.lm_b(i, (acc.value >> self.sf()) as i32, false);
                 acc.set(0);
             }
             acc += mulr[1];
@@ -302,13 +281,13 @@ impl Gte {
             if acc.negative_overflow {
                 self.flags.0 |= 1 << (27 - i);
             }
-            self.mac[i] = (acc.value >> sf) as i32;
+            self.mac[i] = (acc.value >> self.sf()) as i32;
         }
 
-        self.mac_to_ir(lm);
+        self.mac_to_ir();
     }
 
-    fn mac0_ovf(&mut self, value: i64) -> i64 {
+    fn mac0_ovf(&mut self, value: i64) -> i32 {
         if value < -0x8000_0000 {
             // flag set here
             self.flags.set_mac0_of_neg(true);
@@ -319,7 +298,7 @@ impl Gte {
             self.flags.set_mac0_of_pos(true);
         }
 
-        value
+        value as i32
     }
 
     fn a_mv(&mut self, which: usize, value: i64) -> i64 {
@@ -386,7 +365,7 @@ impl Gte {
         self.mac[1] = self.lm_b(2, ir2 as i32, self.lm()) as i32;
         self.mac[2] = self.lm_b(3, ir3 as i32, self.lm()) as i32;
 
-        self.mac_to_ir(self.lm());
+        self.mac_to_ir();
         self.mac_to_rgb_fifo();
     }
 
@@ -403,13 +382,13 @@ impl Gte {
     }
 
     fn transform_xy(&mut self, h_div_sz: i64) {
-        self.mac0 = (self.f(self.ofx as i64 + self.ir[0] as i64 * h_div_sz)
-            >> 16) as i32;
-        self.xy_fifo[3].x = self.lm_g(0, self.mac0) as i16;
+        self.mac0 =
+            self.mac0_ovf(self.ofx as i64 + self.ir[0] as i64 * h_div_sz) >> 16;
+        self.xy_fifo[3].x = self.clamp_coordinate(0, self.mac0) as i16;
 
-        self.mac0 = (self.f(self.ofy as i64 + self.ir[1] as i64 * h_div_sz)
-            >> 16) as i32;
-        self.xy_fifo[3].y = self.lm_g(1, self.mac0) as i16;
+        self.mac0 =
+            self.mac0_ovf(self.ofy as i64 + self.ir[1] as i64 * h_div_sz) >> 16;
+        self.xy_fifo[3].y = self.clamp_coordinate(1, self.mac0) as i16;
 
         self.xy_fifo[0] = self.xy_fifo[1];
         self.xy_fifo[1] = self.xy_fifo[2];
@@ -417,24 +396,10 @@ impl Gte {
     }
 
     fn transform_dq(&mut self, h_div_sz: i64) {
-        self.mac0 = self.f(self.dqb as i64 + self.dqa as i64 * h_div_sz) as i32;
+        self.mac0 = self.mac0_ovf(self.dqb as i64 + self.dqa as i64 * h_div_sz);
         self.ir0 = self
             .lm_h(((self.dqb as i64 + self.dqa as i64 * h_div_sz) >> 12) as i32)
             as i16;
-    }
-
-    fn f(&mut self, value: i64) -> i64 {
-        if value < -0x8000_0000 {
-            // flag set here
-            self.flags.set_mac0_of_neg(true);
-        }
-
-        if value > 0x7fff_ffff {
-            // flag set here
-            self.flags.set_mac0_of_pos(true);
-        }
-
-        value
     }
 
     fn lm_h(&mut self, value: i32) -> i16 {
@@ -462,14 +427,8 @@ impl Gte {
         }
     }
 
-    fn lm_b_ptz(
-        &mut self,
-        which: usize,
-        value: i32,
-        ftv_value: i32,
-        lm: bool,
-    ) -> i16 {
-        let tmp: i32 = if lm { 0x8000 } else { 0 };
+    fn lm_b_ptz(&mut self, which: usize, value: i32, ftv_value: i32) -> i16 {
+        let tmp: i32 = if self.lm() { 0x8000 } else { 0 };
 
         if ftv_value < -0x8000 {
             self.flags.0 |= 1 << (24 - which);
@@ -494,7 +453,7 @@ impl Gte {
                 * (self.z_fifo[1] as i64
                     + self.z_fifo[2] as i64
                     + self.z_fifo[3] as i64),
-        ) as i32;
+        );
         self.otz = self.lm_d(self.mac0 >> 12, false) as u16;
     }
 
@@ -527,16 +486,14 @@ impl Gte {
             matrix,
             self.v(),
             self.cv(),
-            self.sf(),
-            self.lm(),
             (self.current_instruction >> 13) & 3 == 2,
         );
     }
 
-    fn mac_to_ir(&mut self, lm: bool) {
-        self.ir[0] = self.lm_b(0, self.mac[0], lm);
-        self.ir[1] = self.lm_b(1, self.mac[1], lm);
-        self.ir[2] = self.lm_b(2, self.mac[2], lm);
+    fn mac_to_ir(&mut self) {
+        self.ir[0] = self.lm_b(0, self.mac[0], self.lm());
+        self.ir[1] = self.lm_b(1, self.mac[1], self.lm());
+        self.ir[2] = self.lm_b(2, self.mac[2], self.lm());
     }
 
     fn v(&self) -> Vector<i16> {
@@ -557,7 +514,7 @@ impl Gte {
         }
     }
 
-    fn lm_g(&mut self, which: usize, value: i32) -> i16 {
+    fn clamp_coordinate(&mut self, which: usize, value: i32) -> i16 {
         if value < -0x400 {
             self.flags.0 |= 1 << (14 - which);
             -0x400
@@ -574,7 +531,7 @@ impl Gte {
         self.mac[1] = (self.ir0 as i32 * self.ir[1] as i32) >> self.sf();
         self.mac[2] = (self.ir0 as i32 * self.ir[2] as i32) >> self.sf();
 
-        self.mac_to_ir(self.lm());
+        self.mac_to_ir();
         self.mac_to_rgb_fifo();
     }
 
@@ -594,62 +551,56 @@ impl Gte {
             (((self.mac[2] as i64) << self.sf()) + (ir[2] as i64)) >> self.sf(),
         ) as i32;
 
-        self.mac_to_ir(self.lm());
+        self.mac_to_ir();
         self.mac_to_rgb_fifo();
     }
 
     pub(crate) fn ins_ncct(&mut self) {
         for i in 0..3 {
-            self.norm_color_color(i, self.sf(), self.lm());
+            self.norm_color_color(i);
         }
     }
 
-    fn norm_color_color(&mut self, v: usize, sf: usize, lm: bool) {
+    fn norm_color_color(&mut self, v: usize) {
         self.multiply_matrix_by_vector(
             self.light,
             self.vectors[v],
             self.null,
-            sf,
-            lm,
             false,
         );
 
-        self.multiply_matrix_by_vector(
-            self.color, self.ir, self.b, sf, lm, false,
-        );
+        self.multiply_matrix_by_vector(self.color, self.ir, self.b, false);
 
-        self.mac[0] = (((self.rgb.r as i32) << 4) * self.ir[0] as i32) >> sf;
-        self.mac[1] = (((self.rgb.g as i32) << 4) * self.ir[1] as i32) >> sf;
-        self.mac[2] = (((self.rgb.b as i32) << 4) * self.ir[2] as i32) >> sf;
+        self.mac[0] =
+            (((self.rgb.r as i32) << 4) * self.ir[0] as i32) >> self.sf();
+        self.mac[1] =
+            (((self.rgb.g as i32) << 4) * self.ir[1] as i32) >> self.sf();
+        self.mac[2] =
+            (((self.rgb.b as i32) << 4) * self.ir[2] as i32) >> self.sf();
 
-        self.mac_to_ir(lm);
+        self.mac_to_ir();
         self.mac_to_rgb_fifo();
     }
 
     pub(super) fn ins_op(&mut self) {
-        self.mac[0] = ((self.rotation.0[1][1] as i32 * self.ir[2] as i32)
-            - (self.rotation.0[2][2] as i32 * self.ir[1] as i32))
-            >> self.sf();
-        self.mac[1] = ((self.rotation.0[2][2] as i32 * self.ir[0] as i32)
-            - (self.rotation.0[0][0] as i32 * self.ir[2] as i32))
-            >> self.sf();
-        self.mac[2] = ((self.rotation.0[0][0] as i32 * self.ir[1] as i32)
-            - (self.rotation.0[1][1] as i32 * self.ir[0] as i32))
-            >> self.sf();
+        let v0 = Vector([
+            self.rotation.0[0][0] as i32,
+            self.rotation.0[1][1] as i32,
+            self.rotation.0[2][2] as i32,
+        ]);
 
-        self.mac_to_ir(self.lm());
+        let v1 = self.ir.grow();
+
+        self.mac[0] = ((v0[1] * v1[2]) - (v0[2] * v1[1])) >> self.sf();
+        self.mac[1] = ((v0[2] * v1[0]) - (v0[0] * v1[2])) >> self.sf();
+        self.mac[2] = ((v0[0] * v1[1]) - (v0[1] * v1[0])) >> self.sf();
+
+        self.mac_to_ir();
     }
 
     pub(crate) fn ins_cdp(&mut self) {
-        self.multiply_matrix_by_vector(
-            self.color,
-            self.ir,
-            self.b,
-            self.sf(),
-            self.lm(),
-            false,
-        );
+        self.multiply_matrix_by_vector(self.color, self.ir, self.b, false);
 
-        self.depth_cue(true, false, self.sf(), self.lm());
+        self.depth_cue(true, false);
     }
 }
