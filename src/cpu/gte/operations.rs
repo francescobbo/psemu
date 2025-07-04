@@ -396,10 +396,10 @@ impl Gte {
     }
 
     fn transform_dq(&mut self, h_div_sz: i64) {
-        self.mac0 = self.mac0_ovf(self.dqb as i64 + self.dqa as i64 * h_div_sz);
-        self.ir0 = self
-            .lm_h(((self.dqb as i64 + self.dqa as i64 * h_div_sz) >> 12) as i32)
-            as i16;
+        let res = self.dqb as i64 + self.dqa as i64 * h_div_sz;
+
+        self.mac0 = self.mac0_ovf(res);
+        self.ir0 = self.lm_h((res >> 12) as i32);
     }
 
     fn lm_h(&mut self, value: i32) -> i16 {

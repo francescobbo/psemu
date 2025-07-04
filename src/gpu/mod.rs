@@ -1286,16 +1286,19 @@ impl Gpu {
                         }
                     };
 
-                    let x = ((x as isize + self.x_offset) & 0x3ff) as usize; // Wrap around at 1024
-                    let y = ((y as isize + self.y_offset) & 0x1ff) as usize; // Wrap around at 512
+                    let x = x as isize + self.x_offset;
+                    let y = y as isize + self.y_offset;
 
-                    if x < self.min_x
-                        || x > self.max_x
-                        || y < self.min_y
-                        || y > self.max_y
+                    if x < self.min_x as isize
+                        || x > self.max_x as isize
+                        || y < self.min_y as isize
+                        || y > self.max_y as isize
                     {
                         continue; // Skip pixels outside the clipping rectangle
                     }
+
+                    let x = (x & 0x3ff) as usize; // Wrap around at 1024
+                    let y = (y & 0x1ff) as usize; // Wrap around
 
                     let color = if self.enable_dithering
                         && blending_mode != TextureBlendingMode::Raw
@@ -1321,10 +1324,74 @@ impl Gpu {
     }
 
     fn line(&mut self, v1: VertexData, v2: VertexData, semi_transparent: bool) {
-        println!(
-            "[GPU] Drawing line from ({}, {}) to ({}, {})",
-            v1.vertex.x, v1.vertex.y, v2.vertex.x, v2.vertex.y
-        );
+        let (x0, y0) = v1.vertex.explode();
+        let (x1, y1) = v2.vertex.explode();
+
+        let dx = (x1 as isize - x0 as isize).abs() as isize;
+        let dy = (y1 as isize - y0 as isize).abs() as isize;
+
+        if dx >= 1024 || dy >= 512 {
+            // Skip rendering if the line is too long
+            return;
+        }
+
+        let (mut x, mut y) = (x0 as isize, y0 as isize);
+        let (x1, y1) = (x1 as isize, y1 as isize);
+
+        let sx: isize = if x1 > x { 1 } else { -1 };
+        let sy: isize = if y1 > y { 1 } else { -1 };
+
+        let mut err = if dx > dy { dx / 2 } else { -dy / 2 };
+
+        let is_more_horizontal = dx > dy;
+
+        let c1 = v1.color;
+        let c2 = v2.color;
+
+        let total_steps = dx.max(dy) as usize;
+        let mut step = 0;
+
+        while (is_more_horizontal && x != x1)
+            || (!is_more_horizontal && y != y1)
+        {
+            let xp = x + self.x_offset;
+            let yp = y + self.y_offset;
+
+            let progress = step as f64 / total_steps as f64;
+            let color = Color::lerp(c1, c2, progress);
+
+            if xp < self.min_x as isize
+                || xp > self.max_x as isize
+                || yp < self.min_y as isize
+                || yp > self.max_y as isize
+            {
+                let xp: usize = (xp & 0x3ff) as usize; // Wrap around at 1024
+                let yp = (yp & 0x1ff) as usize; // Wrap around at 512
+
+                let idx = yp * 1024 + xp;
+
+                // Store the pixel in VRAM as 16-bit BGR555 format
+                self.vram[idx] = Color::new(255, 255, 255, 0).to_bgr555();
+            }
+
+            if is_more_horizontal {
+                err -= dy;
+                if err < 0 {
+                    y += sy;
+                    err += dx;
+                }
+                x += sx;
+            } else {
+                err += dx;
+                if err > 0 {
+                    x += sx;
+                    err -= dy;
+                }
+                y += sy;
+            }
+
+            step += 1;
+        }
     }
 
     fn edge_fn(v1: Vertex, v2: Vertex, v3: Vertex) -> f64 {
@@ -1546,6 +1613,19 @@ impl Color {
             g: (g as f32 / 31.0 * 255.0) as u8,
             b: (b as f32 / 31.0 * 255.0) as u8,
             transparent: t,
+        }
+    }
+
+    fn lerp(c0: Color, c1: Color, alpha: f64) -> Color {
+        let r = c0.r as f64 * (1.0 - alpha) + c1.r as f64 * alpha;
+        let g = c0.g as f64 * (1.0 - alpha) + c1.g as f64 * alpha;
+        let b = c0.b as f64 * (1.0 - alpha) + c1.b as f64 * alpha;
+
+        Color {
+            r: r.clamp(0.0, 255.0) as u8,
+            g: g.clamp(0.0, 255.0) as u8,
+            b: b.clamp(0.0, 255.0) as u8,
+            transparent: c0.transparent | c1.transparent,
         }
     }
 
